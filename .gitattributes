@@ -1,0 +1,22 @@
+# Use LF for all text files (cross-platform stability)
+* text=auto eol=lf
+
+# Enforce diff rules for specific file types
+*.md     text
+*.java   text diff=java
+*.xml    text
+*.yaml   text
+*.yml    text
+*.sh     text
+*.properties text
+
+# Treat JARs, zips, binaries as binary
+*.jar    binary
+*.zip    binary
+*.tar    binary
+*.exe    binary
+
+# Ensure docker scripts stay executable
+*.sh     eol=lf
+*.sh     text
+*.sh     chmod=+x

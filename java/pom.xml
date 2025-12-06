@@ -1,0 +1,137 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.rrp</groupId>
+    <artifactId>kafka-connect-examples</artifactId>
+    <version>${revision}</version>
+    <packaging>pom</packaging>
+
+    <name>Kafka Connect Examples</name>
+
+    <!-- ========= MODULES ========== -->
+    <modules>
+        <module>utilities</module>
+    </modules>
+
+    <!-- ========= PROPERTIES ========== -->
+    <properties>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+
+        <!-- Centralized version management -->
+        <revision>1.0-SNAPSHOT</revision>
+        <kafka.version>3.7.0</kafka.version>
+        <connect.api.version>3.7.0</connect.api.version>
+        <debezium.version>2.6.0.Final</debezium.version>
+
+        <jackson.version>2.17.1</jackson.version>
+        <google.java.format>1.32.0</google.java.format>
+        <spotless.mvn.version>3.1.0</spotless.mvn.version>
+
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <!-- ========= DEPENDENCY MANAGEMENT ========== -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- Kafka / Connect API -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>connect-api</artifactId>
+                <version>${connect.api.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>connect-transforms</artifactId>
+                <version>${connect.api.version}</version>
+            </dependency>
+
+            <!-- Kafka clients (for utilities module) -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${kafka.version}</version>
+            </dependency>
+
+            <!-- Debezium (to parse CDC events) -->
+            <dependency>
+                <groupId>io.debezium</groupId>
+                <artifactId>debezium-api</artifactId>
+                <version>${debezium.version}</version>
+            </dependency>
+
+            <!-- Jackson for JSON utilities -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- ========= BUILD PLUGINS (defaults inherited by modules) ========== -->
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Spotless: Google Java Format + import cleanup -->
+                <plugin>
+                    <groupId>com.diffplug.spotless</groupId>
+                    <artifactId>spotless-maven-plugin</artifactId>
+                    <version>${spotless.mvn.version}</version>
+
+                    <configuration>
+                        <java>
+                            <googleJavaFormat>
+                                <version>${google.java.format}</version>
+                            </googleJavaFormat>
+                            <removeUnusedImports/>
+                            <importOrder/>
+                        </java>
+                    </configuration>
+
+                    <executions>
+                        <!-- AUTO-FORMAT DURING BUILD -->
+                        <execution>
+                            <id>spotless-apply</id>
+                            <goals>
+                                <goal>apply</goal>
+                            </goals>
+                            <phase>process-sources</phase>
+                        </execution>
+                    </executions>
+                </plugin>
+                <!-- Java Compiler -->
+                <plugin>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.11.0</version>
+                    <configuration>
+                        <source>${maven.compiler.source}</source>
+                        <target>${maven.compiler.target}</target>
+                    </configuration>
+                </plugin>
+
+                <!-- Shade plugin used for custom connectors -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>3.5.0</version>
+                </plugin>
+
+                <!-- Testing -->
+                <plugin>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.1.2</version>
+                </plugin>
+
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>

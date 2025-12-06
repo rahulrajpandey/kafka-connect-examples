@@ -1,0 +1,50 @@
+# -------------------------
+# Maven / Java build files
+# -------------------------
+target/
+*.class
+*.log
+
+# Maven wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# -------------------------
+# IntelliJ / Eclipse / VSCode
+# -------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+.vscode/
+
+# -------------------------
+# OS files
+# -------------------------
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Docker artifacts
+# -------------------------
+docker/data/
+docker/logs/
+docker-compose.override.yml
+
+# -------------------------
+# Runtime temp files
+# -------------------------
+*.tmp
+*.bak
+
+# -------------------------
+# Generated JARs (optional)
+# keep if you need examples
+# -------------------------
+**/target/*.jar
+**/target/*.war
+**/target/*.zip
