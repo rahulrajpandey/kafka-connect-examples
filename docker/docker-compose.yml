@@ -7,7 +7,7 @@ services:
     ports:
       - "9092:9092"    # external
     environment:
-      CLUSTER_ID: "abcdefghijklmnopqrstuv"
+      CLUSTER_ID: "019af533-293c-781b-8a86"
 
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
