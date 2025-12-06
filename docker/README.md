@@ -13,20 +13,6 @@ The setup includes:
 
 ## 1. Directory Structure
 
-docker/
-│
-├── docker-compose.yml      # Kafka KRaft setup
-└── scripts/                # Helper management scripts
-├── start.sh
-├── stop.sh
-├── restart.sh
-├── clean.sh
-├── create-topics.sh
-├── list-topics.sh
-├── destroy-topics.sh
-├── logs.sh
-└── status.sh
-
 Make scripts executable:
 
 ```
