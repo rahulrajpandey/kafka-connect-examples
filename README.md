@@ -12,25 +12,7 @@ This is a hands-on, production-grade learning setup built with:
 
 ---
 
-## 1. Repository Structure
-kafka-connect-examples/
-│
-├── README.md                  # You are here (project overview)
-│
-├── docker/
-│   ├── README.md              # Docker/Kafka runtime environment documentation
-│   ├── docker-compose.yml     # Single-node KRaft Kafka environment
-│   └── scripts/               # Utility scripts (start/stop/reset/topics)
-│
-└── java/
-├── README.md              # Java examples documentation
-├── pom.xml                # Maven parent project
-├── utilities/             # Producer/Consumer demos
-└── examples/              # Kafka Connect examples (added lesson by lesson)
-
----
-
-## 2. Current Examples Status
+## 1. Current Examples Status
 
 | Example | Content | Status |
 |---------|---------|--------|
@@ -49,7 +31,7 @@ You can navigate to each lesson through the `java/examples/` directory as they a
 
 ---
 
-## 3. Quick Start (Lesson 1)
+## 2. Quick Start (Lesson 1)
 
 ### Start Kafka:
 
@@ -81,7 +63,7 @@ java -cp java/utilities/consumer-demo/target/consumer-demo-1.0-SNAPSHOT.jar \
 ```
 
 
-## 4. Future Roadmap
+## 3. Future Roadmap
 
 This project will evolve into a full Kafka Connect demonstration environment including:
 	•	Real databases (Postgres, MySQL)
@@ -94,13 +76,13 @@ This project will evolve into a full Kafka Connect demonstration environment inc
 
 ⸻
 
-## 5. Requirements
+## 4. Requirements
 	•	Docker + Docker Compose
 	•	Java 17+
 	•	Maven 3.9+
 
 ⸻
 
-## 6. Contributing
+## 5. Contributing
 
 Pull requests or suggestions to enhance examples, lessons, or documentation are welcome.
