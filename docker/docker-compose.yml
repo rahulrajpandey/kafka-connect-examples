@@ -1,39 +1,187 @@
 services:
 
-  kafka:
+  ###########################################################################
+  # KRaft Controller Node
+  #
+  # - Runs *only* the metadata quorum controller role.
+  # - Does NOT expose broker listeners (no client traffic here).
+  # - Must define a single CONTROLLER listener.
+  # - Must NOT define advertised listeners (controller-only nodes do not
+  #   advertise anything to clients).
+  #
+  # This node stores the cluster metadata logs.
+  ###########################################################################
+  kraft-controller:
     image: confluentinc/cp-kafka:7.7.0
-    container_name: kafka
-    hostname: kafka
+    hostname: kraft-controller
+    container_name: kraft-controller
+
+    # Binding controller port externally (optional).
     ports:
-      - "9092:9092"    # external
+      - "9093:9093"
+
     environment:
-      CLUSTER_ID: "019af533-293c-781b-8a86"
-
+      # Unique ID for this controller.
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
 
-      # Multi-listener setup
-      KAFKA_LISTENERS: "INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      # Controller-only process role (no broker functionality).
+      KAFKA_PROCESS_ROLES: 'controller'
 
-      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:19092,EXTERNAL://localhost:9092"
+      # Quorum voters list: nodeId@host:port
+      # MUST match hostname above and controller listener port.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kraft-controller:9093'
 
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      # Name of the listener used internally for quorum communication.
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
 
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Only ONE listener allowed for a controller node.
+      KAFKA_LISTENERS: 'CONTROLLER://kraft-controller:9093'
 
-      # Topic defaults for single-node
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
-      KAFKA_MIN_IN_SYNC_REPLICAS: 1
+      # Controller nodes MUST define only their own protocol here.
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT'
+
+      # Where metadata logs are stored.
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+
+      # Static cluster ID (must match all nodes).
+      CLUSTER_ID: '019af533-293c-781b-8a86'
+
+      # Log formatting & tuning
+      KAFKA_LOG4J_ROOT_LOGLEVEL: INFO
+      KAFKA_LOG4J_LOGGERS: >
+        kafka.controller=INFO,
+        org.apache.kafka=INFO
+      KAFKA_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN: "%d{ISO8601} %-5p [%t] %c - %m%n"
+
+    volumes:
+      - kraft-data:/var/lib/kafka/data
+
+    networks:
+      - kafka-network
+
+
+  ###########################################################################
+  # Kafka Broker Node
+  #
+  # - Runs only the broker role.
+  # - Does NOT expose a CONTROLLER listener (only the controller must).
+  # - Uses two listeners:
+  #     * INTERNAL (inter-broker communication)
+  #     * EXTERNAL / HOST (for clients outside container)
+  #
+  # - Must NOT advertise a CONTROLLER listener.
+  # - Must reference the controller via quorum voters.
+  #
+  # This node stores partition logs and serves producer/consumer traffic.
+  ###########################################################################
+  kafka-broker:
+    image: confluentinc/cp-kafka:7.7.0
+    hostname: kafka-broker
+    container_name: kafka-broker
+
+    depends_on:
+      - kraft-controller
+
+    ports:
+      # External client access
+      - "9092:9092"
+      # Internal broker listener access (optional exposure)
+      - "19092:19092"
+
+    environment:
+      # Unique ID for this broker.
+      KAFKA_NODE_ID: 2
+
+      # Broker-only role.
+      KAFKA_PROCESS_ROLES: 'broker'
+
+      # Brokers must still know where controllers live.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kraft-controller:9093'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+
+      # Listener definitions:
+      # - PLAINTEXT internal listener for inter-broker traffic
+      # - PLAINTEXT_HOST external listener for clients
+      KAFKA_LISTENERS: >
+        PLAINTEXT://kafka-broker:19092,
+        PLAINTEXT_HOST://0.0.0.0:9092
+
+      # Advertised listeners must use hostname for internal,
+      # localhost for external clients from the host machine.
+      KAFKA_ADVERTISED_LISTENERS: >
+        PLAINTEXT://kafka-broker:19092,
+        PLAINTEXT_HOST://localhost:9092
+
+      # Mapping all listener names → their security protocol.
+      # Controller still listed here because broker talks to controller,
+      # but broker does NOT expose a CONTROLLER listener.
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
+        CONTROLLER:PLAINTEXT,
+        PLAINTEXT:PLAINTEXT,
+        PLAINTEXT_HOST:PLAINTEXT
+
+      # Inter-broker traffic MUST use PLAINTEXT (internal listener).
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+
+      # Broker data directory (partition logs).
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+
+      #######################################################################
+      # Topic configuration for local single-node development
+      #######################################################################
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+
+      # repo settings for local workflows
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+
+      # Must match controller's CLUSTER_ID
+      CLUSTER_ID: '019af533-293c-781b-8a86'
+
+      # Log formatting & tuning
+      KAFKA_LOG4J_ROOT_LOGLEVEL: INFO
+      KAFKA_LOG4J_LOGGERS: >
+        kafka.server=INFO,
+        kafka.controller=INFO,
+        kafka.network.RequestChannel=WARN,
+        org.apache.kafka=INFO
+      KAFKA_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN: "%d{ISO8601} %-5p [%t] %c - %m%n"
+
+      # Optional: JVM optimization
+      KAFKA_HEAP_OPTS: "-Xms1G -Xmx1G"
+      KAFKA_JVM_PERFORMANCE_OPTS: "-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20"
+
+    healthcheck:
+      test: [ "CMD", "bash", "-c", "kafka-topics --bootstrap-server kafka-broker:19092 --list >/dev/null 2>&1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+    volumes:
+      - kafka-data:/var/lib/kafka/data
 
     networks:
-      - kafka-net
+      - kafka-network
 
+
+###########################################################################
+# Shared Docker Network
+###########################################################################
 networks:
-  kafka-net:
+  kafka-network:
     driver: bridge
+
+###########################################################################
+# Persistent Volumes
+###########################################################################
+volumes:
+  kraft-data:
+  kafka-data:

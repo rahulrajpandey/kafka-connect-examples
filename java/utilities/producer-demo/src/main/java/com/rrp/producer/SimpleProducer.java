@@ -7,7 +7,7 @@ import java.util.Properties;
 
 public class SimpleProducer {
 
-    static void main() throws Exception {
+    static void main() {
 
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
