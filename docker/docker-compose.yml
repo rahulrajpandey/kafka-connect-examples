@@ -171,6 +171,47 @@ services:
     networks:
       - kafka-network
 
+  kafka-connect:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: custom-kafka-connect:7.7.0
+    hostname: kafka-connect
+    container_name: kafka-connect
+    depends_on:
+      - kafka-broker
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'kafka-broker:19092'
+      CONNECT_REST_ADVERTISED_HOST_NAME: 'kafka-connect'
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: 'connect-cluster'
+      CONNECT_CONFIG_STORAGE_TOPIC: 'connect-configs'
+      CONNECT_OFFSET_STORAGE_TOPIC: 'connect-offsets'
+      CONNECT_STATUS_STORAGE_TOPIC: 'connect-status'
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: 'org.apache.kafka.connect.storage.StringConverter'
+      CONNECT_VALUE_CONVERTER: 'org.apache.kafka.connect.json.JsonConverter'
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_PLUGIN_PATH: '/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors'
+      CONNECT_LOG4J_ROOT_LOGLEVEL: 'INFO'
+      CONNECT_LOG4J_LOGGERS: 'org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR'
+      KAFKA_HEAP_OPTS: "-Xms512M -Xmx512M"
+    volumes:
+      - connect-data:/tmp/connect-data
+      - ./connectors/source:/tmp/source
+      - ./connectors/sink:/tmp/sink
+    networks:
+      - kafka-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8083/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 ###########################################################################
 # Shared Docker Network
@@ -185,3 +226,4 @@ networks:
 volumes:
   kraft-data:
   kafka-data:
+  connect-data:
