@@ -5,6 +5,8 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-docker exec -it kafka kafka-topics \
-  --bootstrap-server kafka:19092 \
+BROKER="kafka-broker:19092"   # INTERNAL listener
+
+docker exec -it kafka-broker kafka-topics \
+  --bootstrap-server $BROKER \
   --delete --topic "$1"
