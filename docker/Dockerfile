@@ -1,25 +1,19 @@
-# Base image: Confluent Kafka Connect 7.7.0
-FROM confluentinc/cp-kafka-connect:7.7.0
+# Stage 1: fetch jars from Apache Kafka image matching your version
+FROM apache/kafka:3.7.0 AS kafka-dist
 
-# Switch to root for installation steps
+# build-time root to install plugins and copy files
 USER root
 
-# Directory where FileStream connector JARs will be placed
+# Where we'll place FileStream connector JARs
 ENV FILESTREAM_PLUGIN_DIR=/usr/share/filestream-connectors
-
-# Create plugin directory
 RUN mkdir -p ${FILESTREAM_PLUGIN_DIR}
 
-# Apache Kafka version that matches your Kafka cluster (3.7.0 for Kafka 7.7.x)
-ARG KAFKA_VERSION=3.7.0
-ARG SCALA_VERSION=2.13
+# COPY the FileStream connector jars from the kafka image
+# NOTE: verify the source path in the apache/kafka image; common is /opt/kafka/libs
+COPY --from=kafka-dist /opt/kafka/libs/connect-file-*.jar ${FILESTREAM_PLUGIN_DIR}/
 
-# Download only once, extract only needed JARs, keep image small
-RUN curl -L -o /tmp/kafka.tgz \
-      https://archive.apache.org/dist/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
-    tar -xzf /tmp/kafka.tgz -C /tmp && \
-    cp /tmp/kafka_${SCALA_VERSION}-${KAFKA_VERSION}/libs/connect-file-*.jar ${FILESTREAM_PLUGIN_DIR}/ && \
-    rm -rf /tmp/kafka*   # cleanup extracted tarball and folder to keep image lean
+# Ensure plugin directories are readable by the Connect runtime user
+RUN chmod -R 755 ${FILESTREAM_PLUGIN_DIR} || true
 
-# Switch back to non-root user (required)
+# Switch back to the non-root user used by the base image
 USER appuser

@@ -48,3 +48,4 @@ docker-compose.override.yml
 **/target/*.jar
 **/target/*.war
 **/target/*.zip
+*.jar
