@@ -8,19 +8,7 @@ All steps are included so learners can reproduce the setup reliably.
 1. Custom Kafka Connect Dockerfile (With FileStream Connectors)
 
 Create a Dockerfile inside the docker directory:
-
-# Stage 1: fetch jars from Apache Kafka image matching your version
-FROM apache/kafka:3.7.0 AS kafka-dist
-USER root
-ENV FILESTREAM_PLUGIN_DIR=/usr/share/filestream-connectors
-RUN mkdir -p ${FILESTREAM_PLUGIN_DIR}
-COPY --from=kafka-dist /opt/kafka/libs/connect-file-*.jar ${FILESTREAM_PLUGIN_DIR}/
-RUN chmod -R 755 ${FILESTREAM_PLUGIN_DIR} || true
-USER appuser
-
-Ensure your Kafka Connect container includes:
-
-CONNECT_PLUGIN_PATH=/usr/share/java,/usr/share/filestream-connectors
+Refer kafka-connect-examples/docker/Dockerfile.
 
 
 ⸻
