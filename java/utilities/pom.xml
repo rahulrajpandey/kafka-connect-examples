@@ -17,5 +17,6 @@
     <modules>
         <module>producer-demo</module>
         <module>consumer-demo</module>
+        <module>transforms</module>
     </modules>
 </project>

@@ -345,7 +345,7 @@ tail -f connectors/sink/regex-output.txt
 Clean:
 
 curl -X DELETE http://localhost:8083/connectors/regex-sink
-curl -X DELETE http://localhost:8083/connectors/regex-source
+
 
 
 ⸻
@@ -381,5 +381,123 @@ curl -X DELETE http://localhost:8083/connectors/mask-sink
 
 ⸻
 
-Next: Partial Masking (requires installing additional plugins)
+12: Partial Masking (requires installing additional plugins)
+
+Build Custom Transformer class and place the jar into docker/plugins/regex-mask directory.
+Update Dockerfile to include this custom SMT plugin.
+
+curl -s http://localhost:8083/connector-plugins | jq
+
+docker exec -it kafka-connect bash -lc "jar tf /usr/share/java/regex-mask/transforms-1.0-SNAPSHOT.jar | grep RegexMask || true"
+com/rrp/connect/RegexMask.class
+com/rrp/connect/RegexMask$Value.class
+
+docker logs kafka-connect | grep -i regex;
+
+[2025-12-09 16:09:05,297] INFO Loading plugin from: /usr/share/java/regex-mask (org.apache.kafka.connect.runtime.isolation.PluginScanner)
+[2025-12-09 16:09:05,303] INFO Registered loader: PluginClassLoader{pluginLocation=file:/usr/share/java/regex-mask/} (org.apache.kafka.connect.runtime.isolation.PluginScanner)
+[2025-12-09 16:09:05,313] INFO Loading plugin from: /usr/share/java/regex-mask/transforms-1.0-SNAPSHOT.jar (org.apache.kafka.connect.runtime.isolation.PluginScanner)
+[2025-12-09 16:09:05,319] INFO Registered loader: PluginClassLoader{pluginLocation=file:/usr/share/java/regex-mask/transforms-1.0-SNAPSHOT.jar} (org.apache.kafka.connect.runtime.isolation.PluginScanner)
+[2025-12-09 16:09:13,529] INFO Loading plugin from: /usr/share/java/regex-mask (org.apache.kafka.connect.runtime.isolation.PluginScanner)
+[2025-12-09 16:09:13,662] INFO Registered loader: PluginClassLoader{pluginLocation=file:/usr/share/java/regex-mask/} (org.apache.kafka.connect.runtime.isolation.PluginScanner)
+[2025-12-09 16:09:13,663] INFO Loading plugin from: /usr/share/java/regex-mask/transforms-1.0-SNAPSHOT.jar (org.apache.kafka.connect.runtime.isolation.PluginScanner)
+[2025-12-09 16:09:13,783] INFO Registered loader: PluginClassLoader{pluginLocation=file:/usr/share/java/regex-mask/transforms-1.0-SNAPSHOT.jar} (org.apache.kafka.connect.runtime.isolation.PluginScanner)
+file:/usr/share/java/regex-mask/	com.rrp.connect.RegexMask	transformation	undefined
+file:/usr/share/java/regex-mask/transforms-1.0-SNAPSHOT.jar	com.rrp.connect.RegexMask	transformationundefined
+[2025-12-09 16:09:14,945] INFO Added plugin 'com.rrp.connect.RegexMask' (org.apache.kafka.connect.runtime.isolation.DelegatingClassLoader)
+[2025-12-09 16:09:14,945] INFO Added plugin 'org.apache.kafka.connect.transforms.RegexRouter' (org.apache.kafka.connect.runtime.isolation.DelegatingClassLoader)
+[2025-12-09 16:09:14,945] INFO Added plugin 'com.rrp.connect.RegexMask$Value' (org.apache.kafka.connect.runtime.isolation.DelegatingClassLoader)
+[2025-12-09 16:09:14,947] INFO Added alias 'RegexRouter' to plugin 'org.apache.kafka.connect.transforms.RegexRouter' (org.apache.kafka.connect.runtime.isolation.DelegatingClassLoader)
+[2025-12-09 16:09:14,947] INFO Added alias 'RegexMask' to plugin 'com.rrp.connect.RegexMask' (org.apache.kafka.connect.runtime.isolation.DelegatingClassLoader)
+
+
+Validate SMT is loadable:
+curl -s -X PUT http://localhost:8083/connector-plugins/org.apache.kafka.connect.file.FileStreamSinkConnector/config/validate \
+-H "Content-Type: application/json" \
+-d '{
+"connector.class":"org.apache.kafka.connect.file.FileStreamSinkConnector",
+"transforms":"mask",
+"transforms.mask.type":"com.rrp.connect.RegexMask$Value",
+"transforms.mask.regex":"([A-Za-z0-9._%+-]+)@",
+"transforms.mask.replacement":"***@"
+}' | jq
+
+
+Create Source and Sink Connector and test
+
+docker exec -it kafka-broker kafka-topics \
+--create --topic file-raw \
+--bootstrap-server kafka-broker:19092
+
+Register source:
+
+curl -X POST http://localhost:8083/connectors \
+-H "Content-Type: application/json" \
+-d '{
+"name": "regex-source",
+"config": {
+"connector.class": "org.apache.kafka.connect.file.FileStreamSourceConnector",
+"tasks.max": "1",
+"file": "/tmp/source/source.txt",
+"topic": "file-raw",
+"key.converter": "org.apache.kafka.connect.storage.StringConverter",
+"value.converter": "org.apache.kafka.connect.storage.StringConverter"
+}
+}'
+
+curl -s -X POST http://localhost:8083/connectors \
+-H "Content-Type: application/json" \
+-d '{
+"name": "file-mask-sink",
+"config": {
+"connector.class": "org.apache.kafka.connect.file.FileStreamSinkConnector",
+"tasks.max": "1",
+"topics": "file-raw",
+"file": "/tmp/sink/regex-mask-output.txt",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter.schemas.enable": "false",
+
+    "transforms": "MaskEmail",
+    "transforms.MaskEmail.type": "com.rrp.connect.RegexMask$Value",
+
+    "transforms.MaskEmail.regex": "(?<=.{2}).(?=[^@]*@)",
+    "transforms.MaskEmail.replacement": "*"
+}
+}'
+
+OUTPPUT:
+{"name":"file-mask-sink","config":{"connector.class":"org.apache.kafka.connect.file.FileStreamSinkConnector",
+"tasks.max":"1","topics":"file-raw","file":"/tmp/sink/regex-mask-output.txt",
+"key.converter":"org.apache.kafka.connect.storage.StringConverter",
+"value.converter":"org.apache.kafka.connect.json.JsonConverter","value.converter.schemas.enable":"false",
+"transforms":"MaskEmail","transforms.MaskEmail.type":"com.rrp.connect.RegexMask$Value",
+"transforms.MaskEmail.regex":"(?<=.{2}).(?=[^@]*@)",
+"transforms.MaskEmail.replacement":"*","name":"file-mask-sink"},"tasks":[],"type":"sink"}
+
+TEST:
+Write to Source file:
+echo "Hello No Regex Transformation needed" >> connectors/source/source.txt
+echo "Transform this rahul@test.com" >> connectors/source/source.txt
+echo "rahul.raj@example.com" >> connectors/source/source.txt
+echo '{"email": "rahul.raj@example.com", "name": "Rahul"}' >> connectors/source/source.txt
+echo '{"profile": {"email": "john.doe@company.org", "age": 30}}' >> connectors/source/source.txt
+
+> tail -f connectors/sink/regex-mask-output.txt
+Hello No Regex Transformation needed
+Transform this ***@test.com
+Transform this again ***@test.com
+ra*******@example.com
+{"email":"ra*******@example.com","name":"Rahul"}
+{"profile":{"email":"jo******@company.org","age":30}}
+
+
+![Partial Masking Demo](Partial-Masking-Demo.png)
+
+CleanUP:
+curl -X DELETE http://localhost:8083/connectors/regex-source
+
+curl -X DELETE http://localhost:8083/connectors/file-mask-sink
 

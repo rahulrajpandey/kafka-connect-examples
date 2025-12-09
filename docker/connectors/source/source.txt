@@ -1,5 +1,6 @@
-Hello Simple SMT
-It will be copied directly to sink file without any transformations
-Simple Test Message
-Simple Test Message 2
-This message will be masked entirely
+Hello No Regex Transformation needed
+Transform this rahul@test.com
+Transform this again rahul@test.com
+rahul.raj@example.com
+{"email": "rahul.raj@example.com", "name": "Rahul"}
+{"profile": {"email": "john.doe@company.org", "age": 30}}
