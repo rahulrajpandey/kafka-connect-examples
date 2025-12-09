@@ -1,30 +1,45 @@
 # ------------------------------------------------------------
-# Stage 1: extract FileStream connector jars from Apache Kafka
+# Stage 1: Extract FileStream connector JARs from Apache Kafka
 # ------------------------------------------------------------
 FROM apache/kafka:3.7.0 AS kafka-dist
 
-
 # ------------------------------------------------------------
-# Stage 2: final Kafka Connect image with plugins
+# Stage 2: Build final Kafka Connect worker image
 # ------------------------------------------------------------
 FROM confluentinc/cp-kafka-connect:7.7.0
 
 USER root
 
-# Install unzip for extracting FilePulse plugin (UBI8 → microdnf)
-RUN microdnf install -y unzip && microdnf clean all
+# ------------------------------------------------------------
+# Create plugin directories (each plugin MUST be isolated)
+# ------------------------------------------------------------
+ENV FILESTREAM_PLUGIN_DIR=/usr/share/connect/plugins/filestream
+ENV REGEXMASK_PLUGIN_DIR=/usr/share/connect/plugins/regex-mask
 
-# Directory for FileStream connector jars
-ENV FILESTREAM_PLUGIN_DIR=/usr/share/filestream-connectors
-RUN mkdir -p ${FILESTREAM_PLUGIN_DIR}
+RUN mkdir -p ${FILESTREAM_PLUGIN_DIR} \
+           ${REGEXMASK_PLUGIN_DIR}
 
-# Copy FileStream connector jars from Stage 1
+# ------------------------------------------------------------
+# Copy FileStream connector jars from the Kafka image
+# ------------------------------------------------------------
 COPY --from=kafka-dist /opt/kafka/libs/connect-file-*.jar ${FILESTREAM_PLUGIN_DIR}/
 
-# custom SMT
-COPY ./plugins/regex-mask/transforms-1.0-SNAPSHOT.jar /usr/share/java/regex-mask/transforms-1.0-SNAPSHOT.jar
+# ------------------------------------------------------------
+# Copy custom SMT plugin
+# ------------------------------------------------------------
+COPY ./plugins/regex-mask/transforms-1.0-SNAPSHOT.jar \
+     ${REGEXMASK_PLUGIN_DIR}/transforms-1.0-SNAPSHOT.jar
 
-# Permissions
-RUN chmod -R 755 /usr/share/
+# ------------------------------------------------------------
+# Set correct permissions ONLY on plugin folders
+# ------------------------------------------------------------
+RUN chmod -R 755 /usr/share/connect/plugins
 
+# ------------------------------------------------------------
+# Optimize Kafka Connect plugin discovery
+# ------------------------------------------------------------
+ENV CONNECT_PLUGIN_PATH="/usr/share/connect/plugins"
+ENV CONNECT_PLUGIN_DISCOVERY="only_scan"
+
+# Return to default non-root user
 USER appuser
