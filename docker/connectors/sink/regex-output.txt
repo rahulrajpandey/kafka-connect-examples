@@ -1,0 +1,4 @@
+Hello Simple SMT
+It will be copied directly to sink file without any transformations
+Simple Test Message
+Simple Test Message 2

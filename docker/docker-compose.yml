@@ -194,9 +194,9 @@ services:
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_KEY_CONVERTER: 'org.apache.kafka.connect.storage.StringConverter'
-      CONNECT_VALUE_CONVERTER: 'org.apache.kafka.connect.json.JsonConverter'
+      CONNECT_VALUE_CONVERTER: 'org.apache.kafka.connect.storage.StringConverter'
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
-      CONNECT_PLUGIN_PATH: '/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors'
+      CONNECT_PLUGIN_PATH: '/usr/share/java,/usr/share/filestream-connectors,/usr/share/debezium,/usr/share/java/regex-mask'
       CONNECT_LOG4J_ROOT_LOGLEVEL: 'INFO'
       CONNECT_LOG4J_LOGGERS: 'org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR'
       KAFKA_HEAP_OPTS: "-Xms512M -Xmx512M"
@@ -204,6 +204,7 @@ services:
       - connect-data:/tmp/connect-data
       - ./connectors/source:/tmp/source
       - ./connectors/sink:/tmp/sink
+      - ./plugins/regex-mask:/usr/share/regex-mask
     networks:
       - kafka-network
     healthcheck:

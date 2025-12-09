@@ -1,1 +1,6 @@
-{"message":"initial-line"}
+Hello No Regex Transformation needed
+Transform this rahul@test.com
+Transform this again rahul@test.com
+rahul.raj@example.com
+{"email": "rahul.raj@example.com", "name": "Rahul"}
+{"profile": {"email": "john.doe@company.org", "age": 30}}
