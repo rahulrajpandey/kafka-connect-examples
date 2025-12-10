@@ -255,17 +255,18 @@ docker exec -it kafka-broker kafka-console-consumer \
 `curl -s localhost:8083/connectors | jq`
 
 **Connector config:**
-`curl -s localhost:8083/connectors/ | jq`
+`curl -s localhost:8083/connectors/{connector-name} | jq`
 
 **Status:**
-`curl -s localhost:8083/connectors//status | jq`
+`curl -s localhost:8083/connectors/{connector-name}/status | jq`
 
 **Pause / Resume:**
-`curl -X PUT localhost:8083/connectors//pause
-curl -X PUT localhost:8083/connectors//resume`
+`curl -X PUT localhost:8083/connectors/{connector-name}/pause`
+
+`curl -X PUT localhost:8083/connectors/{connector-name}/resume`
 
 **Restart:**
-`curl -X POST localhost:8083/connectors//restart`
+`curl -X POST localhost:8083/connectors/{connector-name}/restart`
 
 **List only source connectors:**
 ```
@@ -273,6 +274,14 @@ curl -s localhost:8083/connectors
 | jq -r ‘.[]’
 | xargs -I {} curl -s localhost:8083/connectors/{}/
 | jq ‘select(.type == “source”) | .name’
+```
+
+**List only sink connectors:**
+```
+curl -s localhost:8083/connectors
+| jq -r ‘.[]’
+| xargs -I {} curl -s localhost:8083/connectors/{}/
+| jq ‘select(.type == “sink”) | .name’
 ```
 
 ======================================================================
