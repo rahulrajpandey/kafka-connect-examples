@@ -145,6 +145,30 @@ services:
       start_period: 20s
 
   ###########################################################################
+  # MySQL
+  ###########################################################################
+  mysql:
+    image: mysql:8.0
+    hostname: mysql
+    container_name: mysql
+    restart: unless-stopped
+
+    ports:
+      - "3306:3306"
+
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: demo
+      MYSQL_USER: demo
+      MYSQL_PASSWORD: demo
+
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+    networks:
+      - kafka-network
+
+  ###########################################################################
   # Kafka Connect
   ###########################################################################
   kafka-connect:
@@ -177,10 +201,17 @@ services:
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
 
       CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
-      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      # CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      # CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
 
-      CONNECT_PLUGIN_PATH: "/usr/share/connect/plugins"
+      # Avro Schema Example
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.json.JsonSchemaConverter"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_VALUE_CONVERTER_AUTO_REGISTER_SCHEMAS: "true"
+      CONNECT_VALUE_CONVERTER_USE_LATEST_VERSION: "true"
+
+      CONNECT_PLUGIN_PATH: "/usr/share/connect/plugins,/usr/share/confluent-hub-components"
 
       CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
       CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
@@ -215,3 +246,4 @@ volumes:
   kraft-data:
   kafka-data:
   connect-data:
+  mysql-data:
