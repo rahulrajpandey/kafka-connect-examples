@@ -330,14 +330,198 @@ curl http://localhost:8083/connectors/mysql-users-jdbc-sink/status
 End to End test for Source to Sink using JSON Schema:
 ![JSON Schema E2E Test](JSON-Schema-E2E-Test.png)
 
+
+Cleanup required for next example:
+```
+curl -X DELETE http://localhost:8083/connectors/mysql-users-source
+curl -X DELETE http://localhost:8083/connectors/mysql-users-file-sink
+curl -X DELETE http://localhost:8083/connectors/mysql-users-jdbc-sink
+
+Soft Delete Subject: 
+curl -X DELETE http://localhost:8081/subjects/mysql-users-value
+
+curl http://localhost:8081/subjects
+
+Hard Delete Subject:
+
+curl -X DELETE "http://localhost:8081/subjects/mysql-users-value?permanent=true"
+```
+
 ---
+
+### i) Configure Kafka Connect for Schema Registry (AVRO Schema)
+Avro schemas are stricter and more compact than JSON Schema.
+
+JDBC Source (Avro)
+```
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mysql-users-source-avro",
+    "config": {
+      "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector",
+      "tasks.max": "1",
+
+      "connection.url": "jdbc:mysql://mysql:3306/demo",
+      "connection.user": "demo",
+      "connection.password": "demo",
+
+      "table.whitelist": "users",
+      "mode": "incrementing",
+      "incrementing.column.name": "id",
+
+      "topic.prefix": "mysql-avro-",
+
+      "topic.creation.enable": "true",
+      "topic.creation.default.partitions": "1",
+      "topic.creation.default.replication.factor": "1",
+
+      "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+      "value.converter": "io.confluent.connect.avro.AvroConverter",
+      "value.converter.schema.registry.url": "http://schema-registry:8081"
+    }
+  }'
+```
+
+Check status
+```
+curl http://localhost:8083/connectors/mysql-users-source-avro/status
+```
+
+Expected result
+-	Topic: mysql-avro-users
+-	Subject: mysql-avro-users-value (Avro this time)
+
+Verify Avro schema in Schema Registry
+```
+curl http://localhost:8081/subjects/mysql-avro-users-value/versions/latest
+```
+
+Things to notice:
+What to notice
+- Schema type = Avro
+- Fields are strongly typed
+- Nullable fields represented via unions
+
+```
+curl http://localhost:8081/subjects
+
+```
+Expected:
+["mysql-avro-users-value"]
+
+Read from topic:
+```
+docker exec -it kafka-broker kafka-console-consumer \
+  --bootstrap-server kafka-broker:19092 \
+  --topic mysql-avro-users \
+  --from-beginning
+```
+
+Sidenote: 
+This reading from topic might fail as well depends on how the connector API behaves meaning it is possible that till the 
+time a new row is inserted in the source table, this topic will not be created by connector. So its recommended to insert 
+at-least one new row in the source table after registering this source connector. From that row, this source will pick and accordingly the sink connector will work as well.
+
+File Sink with Avro (no format mismatch)
+```
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mysql-users-file-sink-avro",
+    "config": {
+      "connector.class": "org.apache.kafka.connect.file.FileStreamSinkConnector",
+      "tasks.max": "1",
+
+      "topics": "mysql-avro-users",
+      "file": "/tmp/sink/mysql-users-avro.out",
+
+      "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+      "value.converter": "io.confluent.connect.avro.AvroConverter",
+      "value.converter.schema.registry.url": "http://schema-registry:8081"
+    }
+  }'
+```
+
+JDBC Sink with Avro (minimal, no SMTs)
+
+Create a new sink table
+
+```
+CREATE TABLE users_processed_avro (
+  id INT PRIMARY KEY,
+  name VARCHAR(100),
+  age INT,
+  created_at TIMESTAMP
+);
+```
+
+JDBC Sink (Avro)
+
+```
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mysql-users-jdbc-sink-avro",
+    "config": {
+      "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+      "tasks.max": "1",
+
+      "topics": "mysql-avro-users",
+
+      "connection.url": "jdbc:mysql://mysql:3306/demo",
+      "connection.user": "demo",
+      "connection.password": "demo",
+
+      "auto.create": "false",
+      "auto.evolve": "false",
+
+      "insert.mode": "upsert",
+      "pk.mode": "record_value",
+      "pk.fields": "id",
+
+      "table.name.format": "users_processed_avro",
+
+      "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+      "value.converter": "io.confluent.connect.avro.AvroConverter",
+      "value.converter.schema.registry.url": "http://schema-registry:8081"
+    }
+  }'
+```
+
+```
+curl http://localhost:8083/connectors/mysql-users-jdbc-sink-avro/status
+```
+End to End Demo: 
+![AVRO-Schema-E2E-Demo](AVRO-Schema-E2E-Demo.png)
+
+Note: 
+In this demo, we inserted, 4 records:
+```
+INSERT INTO users (id, name, age) VALUES (501, 'Avro-New', 39);
+INSERT INTO users (id, name, age) VALUES (7, 'Avro-New', 49);
+INSERT INTO users (id, name, age) VALUES (8, 'Avro-New2', 49);
+INSERT INTO users (id, name, age) VALUES (502, 'Avro-New2', 49);
+```
+
+Only id=501 and id=502 rows were picked up by connector because we are using 
+```
+mode=incrementing
+incrementing.column.name=id
+```
+Kafka Connect JDBC Source maintains an offset like this: last_seen_id = MAX(id) that was successfully produced.
+So once it processed id=501 it ignored id=7 and id=8 rows and then processed id=502 row.
+
+
 
 Cleanup: 
 ```
-curl -X DELETE http://localhost:8083/connectors/mysql-users-source
-
-curl -X DELETE http://localhost:8083/connectors/mysql-users-file-sink
-curl -X DELETE http://localhost:8083/connectors/mysql-users-jdbc-sink
+curl -X DELETE http://localhost:8083/connectors/mysql-users-source-avro
+curl -X DELETE http://localhost:8083/connectors/mysql-users-file-sink-avro
+curl -X DELETE http://localhost:8083/connectors/mysql-users-jdbc-sink-avro
 
 
 Soft Delete Subject: 
@@ -350,6 +534,26 @@ Hard Delete Subject:
 curl -X DELETE "http://localhost:8081/subjects/mysql-users-value?permanent=true"
   
 ```
+Important Note: JDBC Source Initial Read Behavior
+
+The JDBC Source connector does not provide a guaranteed snapshot of existing data in a table.
+
+Even when a JDBC Source connector starts with no previously stored offsets, it may initialize its starting position to the current maximum value of the incrementing column (for example, id) and only emit new rows inserted after startup.
+
+As a result:
+- Existing rows present in the table may be skipped
+- Topic creation and schema registration may occur only when the first new qualifying row is inserted
+- This behavior is independent of the serialization format (JSON Schema, Avro, Protobuf)
+
+This is a design choice of the JDBC Source connector, which is optimized for forward polling, not for historical backfills or change data capture.
+
+For use cases that require:
+- A reliable initial snapshot
+- Continuous capture of inserts, updates, and deletes
+- Transactionally consistent event streams
+
+a CDC-based solution (e.g., Debezium) should be used instead of JDBC Source.
+
 ## JSON Schema Converter
 
 Important Limitation (JSON + FileStreamSource)
