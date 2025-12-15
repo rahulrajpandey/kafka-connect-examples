@@ -201,6 +201,8 @@ docker exec -it kafka-broker kafka-console-consumer \
 Insert into table:
 
 ```
+docker exec -it mysql mysql -u demo -pdemo demo
+
 INSERT INTO users (id, name, age) VALUES
 (3, 'Raushan', 31),
 (4, 'Amrit', 26);
@@ -209,10 +211,124 @@ INSERT INTO users (id, name, age) VALUES
 ![JDBC-Source-Connector-Demo](JDBC-SOURCE-CONNECTOR-DEMO.png)
 
 
+Sink Connectors: 
+
+```
+MySQL (users table)
+        |
+        |  JDBC Source Connector
+        v
+Kafka topic: mysql-users
+        |
+        +---------------------------+
+        |                           |
+File Sink Connector        JDBC Sink Connector
+(users.json)               (users_processed table)
+        |
+   SMTs applied              SMTs applied
+```
+
+Ex 1: File Sink Connector (with Transformation)
+Write Kafka records to a file after masking / renaming fields.
+
+File Sink config:
+```
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mysql-users-file-sink",
+    "config": {
+      "connector.class": "org.apache.kafka.connect.file.FileStreamSinkConnector",
+      "tasks.max": "1",
+
+      "topics": "mysql-users",
+      "file": "/tmp/sink/mysql-users.out",
+
+      "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+      "value.converter": "io.confluent.connect.json.JsonSchemaConverter",
+      "value.converter.schema.registry.url": "http://schema-registry:8081",
+
+      "transforms": "MaskName,RenameField",
+
+      "transforms.MaskName.type": "org.apache.kafka.connect.transforms.MaskField$Value",
+      "transforms.MaskName.fields": "name",
+
+      "transforms.RenameField.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
+      "transforms.RenameField.renames": "age:user_age"
+    }
+  }'
+```
+
+```
+curl http://localhost:8083/connectors
+
+curl http://localhost:8083/connectors/mysql-users-file-sink/status
+```
+Ex 2: JDBC Sink Connector (Kafka → MySQL) (with transformation)
+Write transformed Kafka records into another MySQL table.
+As part of transformation, we will remove created_at field from source table and then write the rows into sink table.
+
+Create Target Table:
+```
+docker exec -it mysql mysql -u demo -pdemo demo
+
+CREATE TABLE users_processed (
+  id INT PRIMARY KEY,
+  user_name VARCHAR(100),
+  user_age INT
+);
+```
+
+JDBC Sink config
+```
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mysql-users-jdbc-sink",
+    "config": {
+      "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+      "tasks.max": "1",
+
+      "topics": "mysql-users",
+
+      "connection.url": "jdbc:mysql://mysql:3306/demo",
+      "connection.user": "demo",
+      "connection.password": "demo",
+
+      "auto.create": "false",
+      "auto.evolve": "false",
+      "insert.mode": "upsert",
+      "pk.mode": "record_value",
+      "pk.fields": "id",
+
+      "table.name.format": "users_processed",
+      
+      "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+      "value.converter": "io.confluent.connect.json.JsonSchemaConverter",
+      "value.converter.schema.registry.url": "http://schema-registry:8081",
+
+      "transforms": "Rename,DropField",
+
+      "transforms.Rename.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
+      "transforms.Rename.renames": "name:user_name,age:user_age",
+
+      "transforms.DropField.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
+      "transforms.DropField.blacklist": "created_at"
+    }
+  }'
+```
 
 
+```
+curl http://localhost:8083/connectors
 
+curl http://localhost:8083/connectors/mysql-users-jdbc-sink/status
+```
 
+End to End test for Source to Sink using JSON Schema:
+![JSON Schema E2E Test](JSON-Schema-E2E-Test.png)
 
 ---
 
@@ -220,7 +336,9 @@ Cleanup:
 ```
 curl -X DELETE http://localhost:8083/connectors/mysql-users-source
 
-curl -X DELETE http://localhost:8083/connectors/json-schema-sink
+curl -X DELETE http://localhost:8083/connectors/mysql-users-file-sink
+curl -X DELETE http://localhost:8083/connectors/mysql-users-jdbc-sink
+
 
 Soft Delete Subject: 
 curl -X DELETE http://localhost:8081/subjects/mysql-users-value
