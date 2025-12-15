@@ -208,6 +208,12 @@ INSERT INTO users (id, name, age) VALUES
 
 ![JDBC-Source-Connector-Demo](JDBC-SOURCE-CONNECTOR-DEMO.png)
 
+
+
+
+
+
+
 ---
 
 Cleanup: 
