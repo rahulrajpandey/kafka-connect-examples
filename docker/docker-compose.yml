@@ -107,6 +107,42 @@ services:
     networks:
       - kafka-network
 
+  ###########################################################################
+  # Schema Registry
+  ###########################################################################
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.0
+    hostname: schema-registry
+    container_name: schema-registry
+    restart: unless-stopped
+
+    depends_on:
+      - kafka-broker
+
+    ports:
+      - "8081:8081"
+
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+
+      # Connect Schema Registry to Kafka (KRaft broker)
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka-broker:19092"
+
+      # Single-node dev settings
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 1
+
+      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: INFO
+
+    networks:
+      - kafka-network
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/subjects"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   ###########################################################################
   # Kafka Connect
