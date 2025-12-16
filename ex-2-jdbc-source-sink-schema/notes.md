@@ -125,7 +125,17 @@ validate:
 curl http://localhost:8083/
 ```
 
-### iii) FileStream Source Connector (JSON Schema)
+### iii) JDBC Source Connector (JSON Schema)
+
+We are going to use incrementing mode in JDBC Source Connector in this example,
+In `mode=incrementing`, the connector tracks an offset equal to the largest value seen in the incrementing column.
+- On the very first poll, if no offset exists yet, it discovers the current maximum and uses that as its starting point (effectively saying “only ingest rows that appear after now”).
+  The query becomes `SELECT * FROM users WHERE id > 2`;
+So with existing
+- Table has `id = 1, 2` before the connector ever runs.
+- At startup in pure `incrementing-only` mode, it establishes `last_seen_id = 2`.
+- Effective query is `id > 2`, so rows 1 and 2 are never emitted.
+This mode is designed for append‑only streams where you are okay with “start from now” semantics, not for historical backfill.
 
 **JDBC Source Connector Config and registration**
 ```
@@ -173,6 +183,12 @@ curl http://localhost:8083/connectors/mysql-users-source/status
 ```
 Expected: `"state": "RUNNING"`
 
+Kafka Connect creates topics and registers schemas only when it actually produces records. Connector registration alone does nothing to Kafka or Schema Registry.
+A JDBC Source connector may start successfully without creating a Kafka topic or registering a schema if no new rows qualify for ingestion and/or if a Schema Registry–backed converter is not configured. 
+Topics and schemas are created lazily only when records are produced.
+To avoid these issues, In production, teams do NOT rely on JDBC Source alone when tables already contain data.
+They use CDC (Debezium), often combined with a one-time bulk load, depending on the use case.
+
 ### v) Verify Schema Registration
 ```
 curl http://localhost:8081/subjects
@@ -193,7 +209,7 @@ curl http://localhost:8081/subjects/mysql-users-value/versions/latest
 Read from topic: 
 ```
 docker exec -it kafka-broker kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
+  --bootstrap-server kafka-broker:19092 \
   --topic mysql-users \
   --from-beginning
 ```
@@ -515,7 +531,10 @@ incrementing.column.name=id
 Kafka Connect JDBC Source maintains an offset like this: last_seen_id = MAX(id) that was successfully produced.
 So once it processed id=501 it ignored id=7 and id=8 rows and then processed id=502 row.
 
-
+Things to know:
+- Kafka topic → binary Avro
+- File Sink / JDBC Sink → readable values
+- Console consumer → unreadable binary
 
 Cleanup: 
 ```
@@ -567,9 +586,6 @@ Schema Registry requires a structured source (JDBC, Debezium, REST, or custom co
 
 
 ---
-Just for understanding: 
-We did auto-registration of schema while registering the source connector.
-So when first valid record is produced, Kafka Connect and JsonSchemaConverter infers the schema and registers it under `users-json-value` and all future records are validated against this schema.
 
 Mental Model to build:
 - Kafka stores bytes.
