@@ -580,6 +580,7 @@ curl http://localhost:8081/subjects
 # Hard Delete Subject:
 curl -X DELETE "http://localhost:8081/subjects/mysql-users-value?permanent=true"
 ```
+
 ---
 Very Important Note — JDBC Source Initial Read Behavior
 
@@ -624,3 +625,4 @@ Schema Registry requires structured sources:
 
 FileStream connectors are for learning only.
 For production, always use structured and deterministic sources.
+
