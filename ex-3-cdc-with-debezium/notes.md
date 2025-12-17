@@ -122,6 +122,7 @@ docker-compose up -d mysql
 
 Enter MySQL Service and Verify binlog is enabled
 ```
+# for administrative setup, login using root user
 docker exec -it mysql mysql -uroot -proot
 
 SHOW VARIABLES LIKE 'log_bin';
@@ -179,14 +180,172 @@ Expected
 ```
 ![MySQL-debezium-connector](MySQL-debezium-connector.png)
 
+### 5. Validate Schema Registry is reachable
+```
+curl http://localhost:8081/subjects
+```
 
 ---
 
 ## Examples – CDC with Debezium (MySQL)
 
-### Ex 1. CDC + Schema Registry
-### Ex 2. Single Table → Single Sink
-### Ex 3. Multiple Tables → Single Sink
-### Ex 4. Fan-out patterns
-### Ex 5. Deletes, updates, and tombstones
-### Ex 6. Common pitfalls and mental models
+### Ex 1. Single Table → Single Sink
+
+**Step 1: Ensure the source table exists**
+```
+docker exec -it mysql mysql -u demo -pdemo demo
+
+drop table if exists users;
+
+CREATE TABLE users (
+  id INT PRIMARY KEY,
+  name VARCHAR(255),
+  age INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO users (id, name, age) VALUES
+(1, 'Rahul', 30),
+(2, 'Amit', 28);
+
+# This initial insertion will be used for snapshot step on Debezium start.
+```
+
+**Step 2: topic naming pattern decision**
+```
+<topic.prefix>.<database>.<table>
+
+Ex: dbserver1.demo.users
+```
+
+**Step 3: Create the Debezium MySQL connector**
+
+We have setup `auto.create.topics.enable=false` in kafka broker, so have to create topic pre-hand and then register the connector.
+
+**Create topics**
+
+```
+# Create the heartbeat topic for Debezium (topic.prefix)
+docker exec -it kafka-broker kafka-topics \
+  --bootstrap-server kafka-broker:19092 \
+  --create \
+  --topic dbserver1 \
+  --partitions 1 \
+  --replication-factor 1
+
+# create source topic
+docker exec -it kafka-broker kafka-topics \
+  --bootstrap-server kafka-broker:19092 \
+  --create \
+  --topic dbserver1.demo.users \
+  --partitions 1 \
+  --replication-factor 1
+  
+docker exec -it kafka-broker \
+  kafka-topics --bootstrap-server kafka-broker:19092 --list
+```
+
+Register the connector
+```
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "debezium-mysql-users",
+    "config": {
+      "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+
+      "tasks.max": "1",
+
+      "database.hostname": "mysql",
+      "database.port": "3306",
+      "database.user": "debezium",
+      "database.password": "dbz",
+
+      "database.server.id": "184054",
+      "topic.prefix": "dbserver1",
+
+      "database.include.list": "demo",
+      "table.include.list": "demo.users",
+
+      "snapshot.mode": "initial",
+
+      "schema.history.internal.kafka.bootstrap.servers": "kafka-broker:19092",
+      "schema.history.internal.kafka.topic": "schema-history.demo",
+
+      "key.converter": "io.confluent.connect.avro.AvroConverter",
+      "key.converter.schema.registry.url": "http://schema-registry:8081",
+
+      "value.converter": "io.confluent.connect.avro.AvroConverter",
+      "value.converter.schema.registry.url": "http://schema-registry:8081"
+    }
+  }'
+```
+![Debezium-Connector-Registration](Debezium-Connector-Registration.png)
+
+**Step 4: Verify Connector Status**
+```
+curl http://localhost:8083/connectors/debezium-mysql-users/status | jq
+```
+
+**Step 5: Observe snapshot phase**
+```
+docker logs kafka-connect | grep -i snapshot
+```
+![snapshot-logs](snapshot-logs.png)
+
+In the attached screenshot, we can see messages indicating:
+- Snapshot started
+- Snapshot completed
+
+**Step 6: Verify Subject Creation**
+
+```
+curl http://localhost:8081/subjects
+
+Expected: ["dbserver1.demo.users-value"]
+```
+
+Step 7: Consume from topic
+```
+docker exec -it kafka-broker kafka-console-consumer \
+  --bootstrap-server kafka-broker:19092 \
+  --topic dbserver1.demo.users \
+  --from-beginning
+  
+  
+  
+docker exec -it kafka-broker  kafka-avro-console-consumer \
+  --bootstrap-server kafka-broker:19092 \
+  --topic dbserver1.demo.users \
+  --from-beginning \
+  --property schema.registry.url=http://schema-registry:8081
+```
+![Data Consumption](Data-Consumed-from-Topic.png)
+
+
+
+Cleanup: 
+```
+curl -X DELETE http://localhost:8083/connectors/debezium-mysql-users
+```
+
+--- 
+
+### Ex 2. Multiple Tables → Single Sink
+
+
+
+
+
+### Ex 3. Fan-out patterns
+
+
+
+
+
+### Ex 4. Deletes, updates, and tombstones
+
+
+
+
+### Ex 5. Common pitfalls and mental models
