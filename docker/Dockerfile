@@ -31,6 +31,20 @@ COPY ./plugins/regex-mask/transforms-1.0-SNAPSHOT.jar \
      ${REGEXMASK_PLUGIN_DIR}/transforms-1.0-SNAPSHOT.jar
 
 # ------------------------------------------------------------
+# Install JDBC Connector via Confluent Hub
+# ------------------------------------------------------------
+
+RUN confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.7.6
+# installs under /usr/share/confluent-hub-components/
+
+# ------------------------------------------------------------
+# Add MySQL JDBC Driver to JDBC plugin
+# ------------------------------------------------------------
+RUN curl -fL -o \
+  /usr/share/confluent-hub-components/confluentinc-kafka-connect-jdbc/mysql-connector-j-8.3.0.jar \
+  https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.3.0/mysql-connector-j-8.3.0.jar
+
+# ------------------------------------------------------------
 # Set correct permissions ONLY on plugin folders
 # ------------------------------------------------------------
 RUN chmod -R 755 /usr/share/connect/plugins
