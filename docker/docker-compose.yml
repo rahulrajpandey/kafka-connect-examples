@@ -153,6 +153,12 @@ services:
     container_name: mysql
     restart: unless-stopped
 
+    command:
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --binlog-row-image=FULL
+
     ports:
       - "3306:3306"
 
