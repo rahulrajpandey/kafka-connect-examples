@@ -180,7 +180,25 @@ Expected
 ```
 ![MySQL-debezium-connector](MySQL-debezium-connector.png)
 
-### 5. Validate Schema Registry is reachable
+### 5. Setup Redpanda Console for Kafka-UI Access
+We need to setup some UI to see messages properly from kafka topics if those are Avro serialized.
+In this example, we will setup Redpanda Console for this use case and will enable and configure SchemaRegistry in that so that it can properly parse the messages in topic and display.
+
+Create Config file for Redpanda:
+```
+kafka:
+  brokers:
+    - kafka-broker:19092
+
+schemaRegistry:
+  enabled: true
+  urls:
+    - http://schema-registry:8081
+```
+
+And then add redpanda-console service in docker-compose file and start the service.
+
+### 6. Validate Schema Registry is reachable
 ```
 curl http://localhost:8081/subjects
 ```
@@ -311,16 +329,116 @@ docker exec -it kafka-broker kafka-console-consumer \
   --bootstrap-server kafka-broker:19092 \
   --topic dbserver1.demo.users \
   --from-beginning
-  
-  
-  
-docker exec -it kafka-broker  kafka-avro-console-consumer \
-  --bootstrap-server kafka-broker:19092 \
-  --topic dbserver1.demo.users \
-  --from-beginning \
-  --property schema.registry.url=http://schema-registry:8081
 ```
 ![Data Consumption](Data-Consumed-from-Topic.png)
+
+Step 8: Check decoded messages from topic on Redpanda-Console Web UI
+![Checking-Messages-Redpanda-Console-UI](Checking-Messages-Redpanda-Console-UI.png)
+![Decoded-Message-Payload-Redpanda-Console-UI](Decoded-Message-Payload-Redpanda-Console-UI.png)
+
+**Decoded value, this is a Debezium Change Event Envelope, not a row.**
+
+This envelope is for CDC pipelines, not business APIs.
+```
+{
+    "after": {
+        "dbserver1.demo.users.Value": {
+            "age": 30,
+            "created_at": "2025-12-17T16:39:26Z",
+            "id": 1,
+            "name": "Rahul"
+        }
+    },
+    "before": null,
+    "op": "r",
+    "source": {
+        "connector": "mysql",
+        "db": "demo",
+        "file": "mysql-bin.000001",
+        "gtid": null,
+        "name": "dbserver1",
+        "pos": 2276,
+        "query": null,
+        "row": 0,
+        "sequence": null,
+        "server_id": 0,
+        "snapshot": "first",
+        "table": "users",
+        "thread": null,
+        "ts_ms": 1765992367000,
+        "ts_ns": "1765992367000000000",
+        "ts_us": "1765992367000000",
+        "version": "3.1.2.Final"
+    },
+    "transaction": null,
+    "ts_ms": 1765992367019,
+    "ts_ns": "1765992367019835467",
+    "ts_us": "1765992367019835"
+}
+```
+
+**Understanding Debezium envelope**
+The event has these major sections:
+```
+{
+  "before": null,
+  "after": {...},
+  "op": "r",
+  "source": {...},
+  "transaction": null,
+  "ts_ms": ...
+}
+```
+i) op — the most important field
+
+| op | Meaning | When it appers          | 
+|----|---------|-------------------------|
+| r  | Read    | Snapshot (initial load) |
+| c  | Create  | INSERT                  |
+| u  | Update  | UPDATE                  |
+| d  | Delete  | DELETE                  |
+
+ii) before and after
+
+- before → row state before the change
+- after → row state after the change
+
+For snapshots and inserts:
+- before = null
+- after = full row
+
+For updates:
+- before = old row
+- after = new row
+
+For deletes:
+- before = last row
+- after = null
+
+iii) source — metadata
+```
+"source": {
+  "connector": "mysql",
+  "db": "demo",
+  "table": "users",
+  "name": "dbserver1",
+  "file": "mysql-bin.000001",
+  "pos": 2276,
+  "snapshot": "first",
+  "version": "3.1.2.Final"
+}
+```
+This allows:
+- Auditing
+- Replay
+- Debugging corruption
+- Multi-table routing
+- Multi-DB pipelines
+
+`"snapshot": "first"` - This row came from the initial snapshot, not from live binlog changes. Later, for new inserts/updates, this field will be false.
+
+
+
 
 
 

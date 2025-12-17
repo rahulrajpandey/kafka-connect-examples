@@ -175,6 +175,24 @@ services:
       - kafka-network
 
   ###########################################################################
+  # Redpanda Console UI
+  ###########################################################################
+  redpanda-console:
+    image: redpandadata/console:latest
+    container_name: redpanda-console
+    ports:
+      - "8080:8080"
+    environment:
+      CONFIG_FILEPATH: /etc/redpanda-console/config.yaml
+    volumes:
+      - ./redpanda-console.yaml:/etc/redpanda-console/config.yaml
+    depends_on:
+      - kafka-broker
+      - schema-registry
+    networks:
+      - kafka-network
+
+  ###########################################################################
   # Kafka Connect
   ###########################################################################
   kafka-connect:
