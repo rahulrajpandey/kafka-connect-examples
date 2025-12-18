@@ -1,0 +1,19 @@
+meta {
+  name: 16. SchemaRegistry HardDelete A Subject
+  type: http
+  seq: 16
+}
+
+delete {
+  url: http://localhost:8081/subjects/mysql-users-value?permanent=true
+  body: none
+  auth: inherit
+}
+
+params:query {
+  permanent: true
+}
+
+settings {
+  encodeUrl: false
+}

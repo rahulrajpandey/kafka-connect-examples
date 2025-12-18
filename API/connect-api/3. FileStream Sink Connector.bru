@@ -1,0 +1,30 @@
+meta {
+  name: 3. FileStream Sink Connector
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://localhost:8083/connectors
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "file-sink-connector",
+    "config": {
+      "connector.class": "org.apache.kafka.connect.file.FileStreamSinkConnector",
+      "tasks.max": "1",
+      "topics": "file-sink-topic",
+      "file": "/tmp/sink/sink.txt",
+      "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+      "value.converter": "org.apache.kafka.connect.storage.StringConverter"
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

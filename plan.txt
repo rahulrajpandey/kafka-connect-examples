@@ -1,0 +1,373 @@
+Below is a clean, structured, end-to-end Kafka Connect Exercise Plan tailored for your current project setup (Docker Compose → Custom Connector → Java code → Onwards to Kubernetes later).
+
+This plan is sequenced so you progressively gain mastery from basics → internals → custom development → production concerns.
+
+⸻
+
+Kafka Connect Learning & Project Exercise Plan
+
+Environment: Local Docker Compose (Kafka + Schema Registry + Kafka Connect + Kafka UI)
+Goal: Learn full lifecycle of Kafka Connect → build custom Java connector → deploy → test → prepare for real-world usage.
+
+⸻
+
+Phase 1: Foundations (Basics & Hands-On)
+
+Exercise 1 — Create Your First Source Connector (FileStreamSource)
+
+Objective: Learn how to create a connector, configure it through REST API, and see data flow into Kafka.
+
+Steps include:
+	•	Create a sample file inside Connect container.
+	•	Configure FileStreamSource connector via REST API.
+	•	Validate messages in Kafka UI.
+
+⸻
+
+Exercise 2 — Create Your First Sink Connector (FileStreamSink)
+
+Objective: Understand sink connectors and how Kafka → Target system works.
+
+Steps include:
+	•	Create topic.
+	•	Produce sample messages.
+	•	Configure FileStreamSink connector.
+	•	Validate output file.
+
+⸻
+
+Exercise 3 — Explore Connector REST API, Plugins & Tasks
+
+Objective: Understand worker architecture deeply.
+
+Includes:
+	•	GET /connectors
+	•	GET /connectors/{name}/status
+	•	List plugins
+	•	Understand worker configs
+	•	View tasks & task failures
+	•	Understand connector lifecycle: paused, resumed, restarted
+
+⸻
+
+Phase 2: Intermediate (Data Transformations & Custom Configurations)
+
+Exercise 4 — Use Single Message Transforms (SMTs)
+
+Objective: Transform data using Connect transforms.
+
+Examples:
+	•	Add a field
+	•	Rename fields
+	•	Convert value to JSON
+	•	Mask sensitive data
+
+Output: Learn how SMTs modify records in the Connect pipeline.
+
+⸻
+
+Exercise 5 — JDBC Source Connector (Postgres → Kafka)
+
+Objective: Use a real enterprise connector.
+
+Includes:
+	•	Bring up Postgres in Docker
+	•	Load sample data
+	•	Configure JDBC Source
+	•	Validate data ingestion
+	•	Understand incremental vs timestamp modes
+
+⸻
+
+Exercise 6 — JDBC Sink Connector (Kafka → Postgres)
+
+Objective: Understand how Kafka data is inserted into DB tables.
+
+⸻
+
+Phase 3: Custom Java Development (Core of Your Project)
+
+Exercise 7 — Build a Custom Kafka Connect Source Connector in Java
+
+Objective: Build your own connector plugin.
+
+Includes:
+	•	Maven project setup
+	•	Implement Connector + Task classes
+	•	Implement start(), stop(), poll()
+	•	Package into JAR
+	•	Add to Docker Connect plugins/ directory
+	•	Restart Connect worker
+	•	Register custom connector via REST
+	•	Validate data flow
+
+⸻
+
+Exercise 8 — Build a Custom Sink Connector
+
+Objective: Write data from Kafka to a system of your choice.
+
+Options (simple starting points):
+	•	Write to a local file
+	•	Write to an HTTP endpoint
+	•	Write to Couchbase (since your project uses it)
+
+⸻
+
+Phase 4: Production Readiness Concepts
+
+Exercise 9 — Error Handling, Dead Letter Queue (DLQ), & Retries
+
+Objective: Learn how Connect handles:
+	•	Bad records
+	•	Retries
+	•	Error tolerance
+	•	DLQs
+
+Hands-on:
+	•	Configure error tolerance
+	•	Test malformed records
+	•	Observe DLQ topics
+
+⸻
+
+Exercise 10 — Distributed Workers, Scaling & Rebalancing
+
+Objective: Understand scaling:
+
+Topics:
+	•	Distributed worker architecture
+	•	How tasks scale
+	•	Rebalancing events
+	•	Connector fault tolerance
+
+Optional hands-on:
+	•	Bring up 2 connect workers in Docker
+	•	Observe task distribution
+
+⸻
+
+Phase 5: Packaging & Deployment
+
+Exercise 11 — Containerizing Your Custom Connector
+
+Objective: Package custom connector JARs inside Docker image.
+
+Includes:
+	•	Create custom Dockerfile
+	•	Extend confluentinc/cp-kafka-connect image
+	•	Add JAR to /usr/share/java
+
+⸻
+
+Exercise 12 — Deploy Custom Connector to Kubernetes
+
+Objective: Prepare for real deployment.
+
+Covers:
+	•	Creating K8s manifests or Helm charts
+	•	Mounting plugin JARs
+	•	Exposing REST API
+	•	ConfigMaps for connector configs
+
+⸻
+
+Summary of the Entire Exercise Plan
+
+Phase	Exercise	Objective
+1	1	FileStream Source Connector
+	2	FileStream Sink Connector
+	3	Worker & Plugin Architecture
+2	4	SMTs
+	5	JDBC Source
+	6	JDBC Sink
+3	7	Custom Source Connector (Java)
+	8	Custom Sink Connector
+4	9	DLQ & Error Handling
+	10	Scaling & Distributed Workers
+5	11	Containerizing Custom Connector
+	12	Deploying to Kubernetes
+
+
+⸻
+Understood. Yes — earlier we discussed a broader, end-to-end Kafka learning roadmap that covers the entire data engineering ecosystem, not just Kafka Connect.
+
+Here is the correct, expanded version of the plan you’re referring to, reconstructed cleanly and aligned with what we discussed earlier.
+
+Kafka Learning Project – Full Exercise Roadmap
+
+This roadmap covers Kafka Core → Kafka Connect → Schema Registry → CDC → Search → Monitoring → Real-Time Pipelines → Custom Connectors.
+It is the comprehensive learning program we outlined.
+
+⸻
+
+Exercise Plan Overview
+
+Exercise	Content	Status
+Exercise 5	Debezium Change Data Capture (CDC) – MySQL/Postgres → Kafka	Pending
+Exercise 6	OpenSearch/Elasticsearch Sink Connector	Pending
+Exercise 7	Custom Kafka Connect Connector – Java Development	Pending
+Exercise 8	Distributed Kafka Connect Cluster + Scaling + Rebalancing	Pending
+Exercise 9	Monitoring Kafka & Connect – Prometheus + Grafana + JMX	Pending
+Exercise 10	End-to-End Real-Time Pipeline (DB → Kafka → Transform → Search)	Pending
+
+
+⸻
+
+Detailed Breakdown of Each Exercise
+
+Exercise 1 — Minimal Kafka + Java Producer/Consumer
+
+Status: Completed
+What you achieved:
+	•	Minimal Kafka broker
+	•	Topic creation
+	•	Basic Java Producer
+	•	Basic Java Consumer
+	•	End-to-end message flow
+
+⸻
+
+Exercise 2 — Kafka Connect FileStream Source & Sink
+
+Objective: Understand Kafka Connect fundamentals.
+
+You will learn:
+	•	How workers, tasks, and connectors operate
+	•	How to submit connector configs via REST API
+	•	How data flows from file → Kafka → file
+
+⸻
+
+Exercise 3 — Schema Registry + Avro/JSON Schema
+
+Objective: Learn schema evolution and serialization.
+
+Includes:
+	•	Installing Schema Registry
+	•	Writing Avro schemas
+	•	Using KafkaAvroSerializer/KafkaAvroDeserializer
+	•	Compatibility settings (BACKWARD/FORWARD/FULL)
+
+⸻
+
+Exercise 4 — JDBC Source/Sink
+
+Build real pipelines:
+	•	JDBC Source → import DB data to Kafka
+	•	JDBC Sink → export Kafka data to DB
+	•	Incremental vs Timestamp modes
+	•	Handling deletes
+
+⸻
+
+Exercise 5 — Debezium CDC
+
+Enterprise-grade CDC pipeline:
+	•	MySQL/Postgres binlog/wal capture
+	•	Handling schema changes
+	•	Before/after images
+	•	Envelopes and transforms
+
+⸻
+
+Exercise 6 — OpenSearch/Elasticsearch Sink
+
+Search indexing pipeline:
+	•	Push Kafka data into OpenSearch
+	•	Automatic index creation
+	•	Data mapping strategies
+	•	Bulk writes
+	•	Error handling
+
+⸻
+
+Exercise 7 — Custom Kafka Connect Connector
+
+You will build:
+	•	A Java Source Connector
+	•	A Task class
+	•	Custom configurations
+	•	Packaging as a plugin
+	•	Deploying into Docker Connect worker
+
+This is the core part of the Connect learning track.
+
+⸻
+
+Exercise 8 — Distributed Kafka Connect Cluster
+
+Objective:
+	•	Multiple Connect workers
+	•	Connector scaling & task balancing
+	•	Worker failure scenarios
+	•	Leader election
+	•	Rebalancing behavior
+
+⸻
+
+Exercise 9 — Monitoring Kafka & Connect
+
+Using:
+	•	Prometheus
+	•	Grafana
+	•	JMX Exporter
+
+What you will monitor:
+	•	Broker metrics
+	•	Connect worker & task metrics
+	•	Lag
+	•	Errors
+	•	Throughput
+
+⸻
+
+Exercise 10 — End-to-End Real-Time Pipeline (Final Project)
+
+A complete real-time architecture:
+	1.	Database → Debezium CDC
+	2.	Kafka topics with Schema Registry
+	3.	Transformations (SMTs)
+	4.	Sink to OpenSearch
+	5.	Monitoring dashboard
+	6.	Java service reading from Kafka
+
+This simulates a modern enterprise streaming setup.
+
+⸻
+
+Your Next Step
+
+We now continue from Exercise 2 (Kafka Connect basics), unless you want to rearrange priorities.
+
+Do you want to proceed directly to:
+
+Start Exercise 2 (FileStream Source & Sink)?
+
+I will provide:
+	•	A clean directory layout
+	•	REST API configs
+	•	Docker commands
+	•	Validation steps
+	•	Troubleshooting
+
+Just confirm: Start Exercise 2.
+
+
+---
+
+For collapsible box in MARKDOWN files.
+
+<details>
+<summary><strong>Java Code</strong></summary>
+
+```java
+public int singleNumber(int[] nums) {
+    int xor = 0;
+    for (int n : nums) {
+        xor ^= n;
+    }
+    return xor;
+}
+```
+</details>

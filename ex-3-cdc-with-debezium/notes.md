@@ -437,15 +437,201 @@ This allows:
 
 `"snapshot": "first"` - This row came from the initial snapshot, not from live binlog changes. Later, for new inserts/updates, this field will be false.
 
+**Step 9: Sink Connector for table-level replication semantics**
+We want to have a replica table where all the operations of source table is replicated, kind of logical replication, target table always converges to source table state.
+For that, we must unwrap/transform the `after` field, convert deletes into DELETE statements and must use upsert semantics.
+For unwrapping or transformation, we will use ExtractNewRecordState SMT which turns CDC events into row-level mutations.
+
+| CDC Event       | After SMT     | 
+|-----------------|---------------|
+| Snapshot (op=r) | INSERT row    |
+| Insert (op=c)   | INSERT row    |
+| Update (op=u)   | UPDATE row    |
+| Delete (op=d)   | DELETE row    |
+
+Create an identical table that mirrors the source:
+We are using created_at field as VARCHAR because Debezium internally captures timestamps as logical types and created_at from users table becomes a String representation like: `ISO-8601 UTC timestamp` which essentially is timezone-safe, and portable.
+
+```
+docker exec -it mysql mysql -u demo -pdemo demo
+
+CREATE TABLE users_replica (
+  id INT PRIMARY KEY,
+  name VARCHAR(255),
+  age INT,
+  created_at VARCHAR(40),
+  __deleted VARCHAR(5)
+);
+
+```
+
+**Step 10: JDBC Sink Connector (CDC → replica)**
+
+<details>
+<summary><strong>JDBC Sink Connector Config</strong></summary>
+
+```curl
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+  "name": "mysql-users-cdc-replica-sink",
+  "config": {
+    "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+
+    "topics": "dbserver1.demo.users",
+
+    "connection.url": "jdbc:mysql://mysql:3306/demo",
+    "connection.user": "demo",
+    "connection.password": "demo",
+
+    "auto.create": "false",
+    "auto.evolve": "false",
+
+    "insert.mode": "upsert",
+    "pk.mode": "record_value",
+    "pk.fields": "id",
+
+    "table.name.format": "users_replica",
+
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry:8081",
+
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://schema-registry:8081",
+
+    "transforms": "unwrap",
+
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "rewrite"
+  }
+}'
+```
+</details>
+
+
+**Step 11: Verify Connector Status**
+```
+curl http://localhost:8083/connectors/mysql-users-cdc-replica-sink/status | jq
+```
+
+Learning: 
+i) In this case we tried with: `"transforms.unwrap.delete.handling.mode": "rewrite"`
+
+It required one more field in sink table __deleted VARCHAR(5), as it emits __deleted="false" for non-delete operations.
+If you don't want this field in DB then can use `"transforms.unwrap.delete.handling.mode": "drop"` but in that case will lose delete propagation.
+
+ii) In this case we tried with: `"transforms.unwrap.drop.tombstones": "true"`, which for delete commands, does not actually delete the row in sink table rather just marks the __deleted column as `true`. 
+This helps in replaying the events by other systems, but if you want to delete row from sink table for a delete in source table, then use these properties: 
+```
+"delete.enabled": "true",
+"pk.mode": "record_key",
+
+"transforms.unwrap.drop.tombstones": "false",
+"transforms.unwrap.delete.handling.mode": "drop"
+
+```
+Ok, so lets try to demonstrate this behavior with the use of a new JDBC Sink Connector to write to a new table.
+
+Create table: 
+
+```
+CREATE TABLE users_replica_v2 (
+  id INT PRIMARY KEY,
+  name VARCHAR(255),
+  age INT,
+  created_at VARCHAR(40)
+);
+```
+
+<details>
+<summary><strong>JDBC Sink Connector Config-v2</strong></summary>
+
+```curl
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+  "name": "mysql-users-cdc-replica-sink-v2",
+  "config": {
+    "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+
+    "topics": "dbserver1.demo.users",
+
+    "connection.url": "jdbc:mysql://mysql:3306/demo",
+    "connection.user": "demo",
+    "connection.password": "demo",
+
+    "auto.create": "false",
+    "auto.evolve": "false",
+
+    "insert.mode": "upsert",
+    "delete.enabled": "true",
+    "pk.mode": "record_key",
+    "pk.fields": "id",
+
+    "table.name.format": "users_replica_v2",
+
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry:8081",
+
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://schema-registry:8081",
+
+    "transforms": "unwrap",
+
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.delete.handling.mode": "drop"
+  }
+}'
+```
+</details>
 
 
 
+**Test:** 
+```
+docker exec -it mysql mysql -u demo -pdemo demo
+
+SELECT * FROM users;
+
+SELECT * FROM users_replica;
+
+INSERT INTO users VALUES (10, 'A', 30)
+
+UPDATE users SET age=31 WHERE id=10
+
+INSERT INTO users (id, name, age) VALUES (20, 'CDC-Test', 40);
+
+UPDATE users SET age=41 WHERE id=20;
+
+DELETE FROM users WHERE id=20;
+```
 
 
 Cleanup: 
 ```
 curl -X DELETE http://localhost:8083/connectors/debezium-mysql-users
+curl -X DELETE http://localhost:8083/connectors/mysql-users-cdc-replica-sink
+curl -X DELETE http://localhost:8083/connectors/mysql-users-cdc-replica-sink-v2
+
+curl -X DELETE http://localhost:8081/subjects/dbserver1.demo.users-value
+
+curl -X DELETE http://localhost:8081/subjects/dbserver1.demo.users-key
+
+curl -X DELETE \
+  "http://localhost:8081/subjects/dbserver1.demo.users-value?permanent=true"
+
+curl -X DELETE \
+  "http://localhost:8081/subjects/dbserver1.demo.users-key?permanent=true"
+
 ```
+
+Let's try this exercise by flipping the connectors creation, first lets create sink connectors and then source connector. This pattern is used for Replicas, Cache warmup, Search Indexes.
 
 --- 
 
@@ -467,3 +653,16 @@ curl -X DELETE http://localhost:8083/connectors/debezium-mysql-users
 
 
 ### Ex 5. Common pitfalls and mental models
+
+
+Useful Command:
+1. Reset Consumer Group Offset (Make sure no active consumer group exists for that group)
+```
+docker exec -it kafka-broker kafka-consumer-groups \
+  --bootstrap-server kafka-broker:19092 \
+  --group <CG-Group-Name> \
+  --reset-offsets \
+  --to-earliest \
+  --execute \
+  --topic dbserver1.demo.users
+```

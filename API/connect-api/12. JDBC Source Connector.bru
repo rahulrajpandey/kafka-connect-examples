@@ -1,0 +1,40 @@
+meta {
+  name: 12. JDBC Source Connector
+  type: http
+  seq: 12
+}
+
+post {
+  url: http://localhost:8083/connectors
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "mysql-users-source",
+    "config": {
+      "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector",
+      "tasks.max": "1",
+      "connection.url": "jdbc:mysql://mysql:3306/demo",
+      "connection.user": "demo",
+      "connection.password": "demo",
+      "table.whitelist": "users",
+      "mode": "incrementing",
+      "incrementing.column.name": "id",
+      "topic.prefix": "mysql-",
+      "topic.creation.enable": "true",
+      "topic.creation.default.partitions": "1",
+      "topic.creation.default.replication.factor": "1"
+    }
+  }
+}
+
+settings {
+  encodeUrl: false
+  timeout: 0
+}

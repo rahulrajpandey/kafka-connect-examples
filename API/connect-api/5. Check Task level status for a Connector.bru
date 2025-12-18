@@ -1,0 +1,16 @@
+meta {
+  name: 5. Check Task level status for a Connector
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://localhost:8083/connectors/file-source-connector/tasks/0/status
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
