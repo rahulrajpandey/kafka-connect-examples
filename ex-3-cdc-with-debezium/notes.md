@@ -444,7 +444,7 @@ docker exec -it kafka-broker \
 Register the connector
 
 <details>
-<summary><strong>JDBC Sink Connector Config-v2</strong></summary>
+<summary><strong>Source Connector debezium-mysql-users</strong></summary>
 
 ```curl
 curl -X POST http://localhost:8083/connectors \
@@ -482,7 +482,7 @@ curl -X POST http://localhost:8083/connectors \
 ```
 </details>
 
-![Debezium-Connector-Registration](Debezium-Connector-Registration.png)
+
 
 **Step 11: Verify Connector Status**
 ```
