@@ -48,7 +48,7 @@ This means:
 
 Debezium is:
 - A CDC engine
-- Implemented as Kafka Connect source connectors
+- Implemented as Kafka Connect **source** connectors
 - Log-based (not polling)
 - Schema-aware
 - Built for Kafka
@@ -508,7 +508,7 @@ Expected: ["dbserver1.demo.users-value"]
 ```
 ![subjects-registered](subjects-registered.png)
 
-**Step 13: Check Schema in SchemaRegistry **
+**Step 13: Check Schema in SchemaRegistry**
 ![schemas-registered](schema-registered.png)
 
 
@@ -1335,6 +1335,72 @@ This allows:
 Later, for new inserts/updates, this field will be false.
 
 
+**Tombstones**
+When you run a DELETE on the source table, Debezium does not emit just one event. It emits two Kafka records, back-to-back, with the same key.
+
+Event 1: Delete Change Event (the "business delete")
+```
+Key: {"id":20}
+
+
+value: 
+{
+    "after": null,
+    "before": {
+        "dbserver1.demo.users.Value": {
+            "age": 41,
+            "created_at": "2025-12-20T11:43:41Z",
+            "id": 20,
+            "name": "CDC-Test"
+        }
+    },
+    "op": "d",
+    "source": {
+        "connector": "mysql",
+        "db": "demo",
+        "file": "mysql-bin.000003",
+        "gtid": null,
+        "name": "dbserver1",
+        "pos": 7758,
+        "query": null,
+        "row": 0,
+        "sequence": null,
+        "server_id": 1,
+        "snapshot": "false",
+        "table": "users",
+        "thread": 10,
+        "ts_ms": 1766231231000,
+        "ts_ns": "1766231231000000000",
+        "ts_us": "1766231231000000",
+        "version": "3.1.2.Final"
+    },
+    "transaction": null,
+    "ts_ms": 1766231231095,
+    "ts_ns": "1766231231095046634",
+    "ts_us": "1766231231095046"
+}
+```
+
+Event 2: Tombstone Event (the "Kafka cleanup signal")
+```
+key: {"id":20}
+
+
+value: null
+```
+This record is called a tombstone. It does not represent a database operation. It exists purely for Kafka’s internal semantics. 
+**Why does Debezium emit a tombstone?**
+
+Kafka topics are append-only logs, not databases. In log-compacted topics, Kafka keeps only the latest value per key.
+
+If Kafka never receives a key → null record:
+- The last value for that key may live forever
+- Consumers joining later may still see stale data
+
+The tombstone tells Kafka: _This key should be considered deleted. Please remove it during log compaction._
+
+
+
 Cleanup: 
 ```
 curl -X DELETE http://localhost:8083/connectors/debezium-mysql-users
@@ -1353,30 +1419,7 @@ curl -X DELETE \
 
 ```
 
-Let's try this exercise by flipping the connectors creation, first lets create sink connectors and then source connector. This pattern is used for Replicas, Cache warmup, Search Indexes.
-
---- 
-
-### Ex 2. Multiple Tables → Single Sink
-
-
-
-
-
-### Ex 3. Fan-out patterns
-
-
-
-
-
-### Ex 4. Deletes, updates, and tombstones
-
-
-
-
-### Ex 5. Common pitfalls and mental models
-
-
+---
 Useful Command:
 1. Reset Consumer Group Offset (Make sure no active consumer group exists for that group)
 ```
