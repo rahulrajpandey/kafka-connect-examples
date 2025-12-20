@@ -34,18 +34,18 @@ curl -X POST localhost:8083/connectors/{connector-name}/restart
 
 **List only source connectors**
 ```
-curl -s localhost:8083/connectors
-| jq -r ‘.[]’
-| xargs -I {} curl -s localhost:8083/connectors/{}/
-| jq ‘select(.type == “source”) | .name’
+curl -s localhost:8083/connectors \
+  | jq -r '.[]' \
+  | xargs -I {} "curl -s localhost:8083/connectors/{}/" \
+  | jq 'select(.type == "source") | .name'
 ```
 
 **List only sink connectors**
 ```
-curl -s localhost:8083/connectors
-| jq -r ‘.[]’
-| xargs -I {} curl -s localhost:8083/connectors/{}/
-| jq ‘select(.type == “sink”) | .name’
+curl -s localhost:8083/connectors \
+  | jq -r '.[]' \
+  | xargs -I {} "curl -s localhost:8083/connectors/{}/" \
+  | jq 'select(.type == "sink") | .name'
 ```
 
 ---
@@ -55,6 +55,7 @@ curl -s localhost:8083/connectors
 **Get Subject from SchemaRegistry**
 ```
 # Fetch Subjects
+
 curl http://localhost:8081/subjects
 
 curl http://localhost:8081/subjects/{subject-name}/versions/latest
@@ -63,9 +64,11 @@ curl http://localhost:8081/subjects/{subject-name}/versions/latest
 **Delete Subject from SchemaRegistry**
 ```
 # Soft Delete Subject: 
+
 curl -X DELETE http://localhost:8081/subjects/{subject-name}
 
 # Hard Delete Subject:
+
 curl -X DELETE "http://localhost:8081/subjects/{subject-name}?permanent=true"
 ```
 
@@ -116,6 +119,8 @@ docker exec -it mysql mysql -uroot -proot
 docker exec -it mysql mysql -u demo -pdemo demo
 
 drop table if exists table-name;
+
+select * from table-name;
 
 ```
 
