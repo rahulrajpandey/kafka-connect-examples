@@ -1418,8 +1418,99 @@ curl -X DELETE \
   "http://localhost:8081/subjects/dbserver1.demo.users-key?permanent=true"
 
 ```
+---
+
+### Ex 2. Debezium Connect Without Schema
+
+```
+MySQL (users table)
+        |
+        |  Debezium MySQL Connector
+        v
+Kafka Topic (JSON CDC events)
+```
+
+Create table and Topic
+```
+docker exec -it mysql mysql -u demo -pdemo demo
+
+-- source table
+CREATE TABLE test_users (
+  id INT PRIMARY KEY,
+  name VARCHAR(255),
+  age INT,
+  created_at VARCHAR(40),
+  __deleted VARCHAR(5)
+);
+
+docker exec -it kafka-broker kafka-topics \
+  --bootstrap-server kafka-broker:19092 \
+  --create \
+  --topic dbserver1.demo.test_users \
+  --partitions 1 \
+  --replication-factor 1
+```
+
+
+Source Connector Config
+<details><summary><strong>Debezium Connector Config - JSON</strong></summary>
+
+```curl
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+  "name": "debezium-mysql-test-users-json",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "mysql",
+    "database.port": "3306",
+    "database.user": "debezium",
+    "database.password": "dbz",
+
+    "database.server.id": "184054",
+    "topic.prefix": "dbserver1",
+
+    "database.include.list": "demo",
+    "table.include.list": "demo.test_users",
+
+    "snapshot.mode": "initial",
+
+    "schema.history.internal.kafka.bootstrap.servers": "kafka-broker:19092",
+    "schema.history.internal.kafka.topic": "schema-history.demo",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+    }
+}'
+```
+</details>
+
+Check status of Connector
+```
+curl http://localhost:8083/connectors/debezium-mysql-test-users-json/status | jq
+```
+
+![consume-json-records](consume-json-records.png)
+
+
+**Note on JSON & JDBC Sink**
+
+In this example, we intentionally do not demonstrate a JDBC Sink.
+
+The JDBC Sink connector requires schema-backed records (Struct + schema).
+When using JsonConverter with schemas.enable=false, Debezium emits schemaless JSON, which is not supported by JDBC Sink by design.
+
+This is not a configuration issue, but an architectural constraint of Kafka Connect.
+
+We will revisit schemaless JSON pipelines using Kafka Streams, where raw JSON handling and flexible transformations are a better fit.
 
 ---
+
 Useful Command:
 1. Reset Consumer Group Offset (Make sure no active consumer group exists for that group)
 ```
