@@ -1,0 +1,15 @@
+meta {
+  name: 14. SchemaRegistry Get latest version of a Subject
+  type: http
+  seq: 14
+}
+
+get {
+  url: http://localhost:8081/subjects/mysql-users-value/versions/latest
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: false
+}

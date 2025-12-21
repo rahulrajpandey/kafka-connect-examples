@@ -1,0 +1,16 @@
+meta {
+  name: 4. Check Source-Connector Status
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://localhost:8083/connectors/file-source-connector/status
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

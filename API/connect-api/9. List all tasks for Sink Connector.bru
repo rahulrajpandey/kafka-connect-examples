@@ -1,0 +1,16 @@
+meta {
+  name: 9. List all tasks for Sink Connector
+  type: http
+  seq: 11
+}
+
+get {
+  url: http://localhost:8083/connectors/file-sink-connector/tasks
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

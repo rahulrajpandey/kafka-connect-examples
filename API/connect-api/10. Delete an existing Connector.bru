@@ -1,0 +1,15 @@
+meta {
+  name: 10. Delete an existing Connector
+  type: http
+  seq: 10
+}
+
+delete {
+  url: http://localhost:8083/connectors/file-source-connector
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

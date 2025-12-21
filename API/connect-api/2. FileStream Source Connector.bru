@@ -1,0 +1,28 @@
+meta {
+  name: 2. FileStream Source Connector
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:8083/connectors
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "file-source-connector",
+    "config": {
+      "connector.class": "org.apache.kafka.connect.file.FileStreamSourceConnector",
+      "tasks.max": "1",
+      "file": "/tmp/source/source.txt",
+      "topic": "file-source-topic"
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
