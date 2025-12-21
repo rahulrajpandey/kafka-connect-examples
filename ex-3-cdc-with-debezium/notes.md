@@ -7,57 +7,57 @@ Traditional database integrations ask: “What is the current state of the table
 
 CDC asks a different question: “What exactly changed, in what order, and why?”
 
-_CDC captures changes, not snapshots._ CDC does not query tables rather it reads the DB's own change log.
+CDC captures changes, not snapshots. CDC does not query tables rather it reads the DB's own change log.
 
 Changes include:
-- INSERT
-- UPDATE
-- DELETE
-- schema changes
+  - INSERT
+  - UPDATE
+  - DELETE
+  - schema changes
 
 And crucially:
-- In the exact order they happened
-- With transaction boundaries
-- Without polling the table
-- Near real-time
-- Very low load on DB
+  - In the exact order they happened
+  - With transaction boundaries
+  - Without polling the table
+  - Near real-time
+  - Very low load on DB
 
 ## 2. How CDC works internally 
 Every serious database maintains a write-ahead log:
 
 For ex:
 
-| Database   | Log |  
-|------------|-----|  
-| MySQL      | binlog |  
-| Postgres   | WAL |  
-| Oracle     | redo logs |  
-| SQL Server | transaction log |
+| Database   | Log              |  
+|------------|------------------|  
+| MySQL      | binlog           |  
+| Postgres   | WAL              |  
+| Oracle     | redo logs        |  
+| SQL Server | transaction log  |
 
 CDC tools:
-- Attach to this log
-- Parse changes
-- Reconstruct row-level events
+  - Attach to this log
+  - Parse changes
+  - Reconstruct row-level events
 
 This means:
-- No table scans
-- No missed updates
-- No race conditions
+  - No table scans
+  - No missed updates
+  - No race conditions
 
 ## 3. Where Debezium fits
 
 Debezium is:
-- A CDC engine
-- Implemented as Kafka Connect **source** connectors
-- Log-based (not polling)
-- Schema-aware
-- Built for Kafka
+  - A CDC engine
+  - Implemented as Kafka Connect **source** connectors
+  - Log-based (not polling)
+  - Schema-aware
+  - Built for Kafka
 
 Debezium’s job: “Turn database changes into a reliable event stream.”
 
 **What Debezium produces** 
-- Debezium does not emit plain rows.
-- It emits events with context.
+  - Debezium does not emit plain rows.
+  - It emits events with context.
 
 Conceptual shape (simplified):
 ```
@@ -89,10 +89,10 @@ When Debezium starts:
 
 **Phase 2: Streaming**
 - Switches to binlog
-- Emits: 
-i) c → insert
-ii) u → update
-iii) d → delete
+- Emits: <br/>
+  i) c → insert <br/>
+  ii) u → update <br/>
+  iii) d → delete
 
 ---
 ## Setup 
@@ -208,10 +208,16 @@ curl http://localhost:8081/subjects
 ## Examples – CDC with Debezium (MySQL)
 
 This example doc has been updated as in my first trial I created source connector first and 
-then created sink which did not pick the snapshot records from the source topic and 
-I learnt that it is preferred to create sink connectors first and then the source connector.
+then created sink which did not pick the snapshot records from the source topic. Debezium always emits the snapshot to Kafka when it starts.
 
-So I second iteration of test and created sink connectors first and then source connector which is documented here.
+Whether a sink consumes the snapshot depends on:
+ - consumer group offsets
+ - auto.offset.reset behavior
+ - whether the sink group already committed offsets
+
+Creating sinks before the source is a safe operational practice.
+
+So in this second iteration of test and I created sink connectors first and then source connector which is documented here.
 
 ### Ex 1. Single Table → Multiple Sink (Fan-Out architecture pattern)
 
