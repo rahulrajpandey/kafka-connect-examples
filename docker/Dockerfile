@@ -50,6 +50,11 @@ RUN confluent-hub install --no-prompt debezium/debezium-connector-mysql:latest
 # installs under /usr/share/confluent-hub-components/
 
 # ------------------------------------------------------------
+# Install ElasticSearch Sink Connector
+# ------------------------------------------------------------
+RUN confluent-hub install --no-prompt confluentinc/kafka-connect-elasticsearch:15.1.0
+
+# ------------------------------------------------------------
 # Set correct permissions ONLY on plugin folders
 # ------------------------------------------------------------
 RUN chmod -R 755 /usr/share/connect/plugins
