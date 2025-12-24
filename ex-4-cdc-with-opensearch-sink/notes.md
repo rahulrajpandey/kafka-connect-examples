@@ -383,6 +383,19 @@ Then connector:
 curl -X DELETE http://localhost:8083/connectors/elasticsearch-users-cdc-sink
 ```
 
+>**Imp Note**
+
+> With schema.ignore=true, the Elasticsearch Sink Connector treats CDC events as schemaless JSON.
+> This allows flexible ingestion and automatic field discovery, but Elasticsearch mappings remain immutable once created.
+> As a result, column type changes in the source database do not update existing field mappings in Elasticsearch,
+> which can lead to silent data loss or indexing failures when incompatible values are encountered.
+
+> For production systems, schema-breaking changes (such as column type modifications) should be handled by creating a new index with the updated mappings,
+> while keeping the previous index intact for historical queries, audits, or replay.
+> Index versioning and controlled reindexing should be used instead of relying on dynamic mapping evolution.
+
+> We are enabling this only for learning and testing purpose.
+
 **Create ElasticSearch Sink Connector**
 
 <details><summary><strong>Sink Connector Config</strong></summary>
@@ -429,7 +442,7 @@ curl -X POST http://localhost:8083/connectors \
 
 **Validations**
 
-i) As we added new field email in the table, there should be a new schema registered for this subject.
+i) As we added new field `email` in the table, there should be a new schema registered for this subject.
 ```
 curl http://localhost:8081/subjects | jq
 
@@ -463,24 +476,162 @@ curl http://localhost:9200/dbserver1.demo.users_os/_mapping | jq
 
 ![schema-evolution-ex1-search](schema-evolution-ex1-search.png)
 
+![schema-evolution-ex1-kibana](schema-evolution-ex1-kibana.png)
+
 ### Ex 2: Schema Evolution (Drop Column)
-Capture:
-- Schema Registry changes
-- ES index mappings
-- Failure scenarios
+
+Db Change: 
+```
+ALTER TABLE users_os DROP COLUMN email;
+
+INSERT INTO users_os (id, name, age) VALUES (102, 'Schema-Test-3', 39);
+```
+
+**Validations**
+
+i) As we dropped existing field `email` from the table, there should **not** be a new schema registered for this subject.
+```
+curl http://localhost:8081/subjects | jq
+
+curl http://localhost:8081/subjects/dbserver1.demo.users_os-value/versions | jq
+
+curl http://localhost:8081/subjects/dbserver1.demo.users_os-value/versions/latest | jq
+```
+ - Avro allows field removal as a backward-compatible change
+ - Debezium treats dropped columns as optional / nullable
+ - The field may simply disappear from the payload
+
+So:
+ - No schema conflict
+ - No new version forced
+ - Same subject version remains valid
+
+ii) Kafka Topic Data
+
+![schema-evolution-ex2-consumption](schema-evolution-ex2-consumption.png)
+
+iii) Index in ElasticSearch must **not** update
+```
+curl http://localhost:9200/dbserver1.demo.users_os/_search\?pretty
+
+curl http://localhost:9200/dbserver1.demo.users_os/_mapping | jq
+```
+Elasticsearch is schema-on-write + immutable mappings
+
+Once a field appears in an index mapping:
+ - It cannot be removed
+ - It cannot change type
+ - It remains forever for that index
+
+This is by design to guarantee:
+ - Segment immutability
+ - Query correctness over historical data
+ - No silent data corruption
+
+So even if the source database drops a column:
+- Elasticsearch keeps the field definition
+- New documents simply stop populating it
+
+If Elasticsearch allowed field deletion:
+ - Old segments would become invalid
+ - Queries on historical data could break
+ - Rollbacks would be impossible
+ - Time-travel analytics would be unsafe
+
+![schema-evolution-ex2-kibana](schema-evolution-ex2-kibana.png)
+
+### Ex 3: Schema Evolution (Modify Column Type | DO NOT DO) (Error Example)
+As stated in Ex 2, we should create a new version for index in ElasticSearch for handling these kind of column data type modifications.
+Here we will continue with the same index as we have enabled `"schema.ignore": true`.
+
+This kind of change should not be done in any production system.
+
+Db Change:
+```
+ALTER TABLE users_os MODIFY COLUMN age BIGINT;
+
+INSERT INTO users_os VALUES (200, 'Type-Test', 12345678901, NOW());
+```
+
+**Validations**
+
+What Happens Internally (Validation Flow)
+```
+MySQL binlog
+   ↓
+Debezium parses row
+   ↓
+Schema history already updated ✔
+   ↓
+Kafka Connect converter tries to map value schema
+   ↓
+❌ Incompatible with previous schema
+   ↓
+Record dropped silently
+   ↓
+Offset committed
+```
+
+Key observations:
+ - Every change event was filtered out
+ - OR dropped due to conversion / schema incompatibility
+ - OR dropped by SMT / schema enforcement
+ - The source connector intentionally skipped emitting records
+ - No explicit ERROR is raised by Debezium (by design)
 
 
+i) As we update the data type of field `age` in the table, there should be a new schema registered for this subject.
+```
+curl http://localhost:8081/subjects | jq
 
+curl http://localhost:8081/subjects/dbserver1.demo.users_os-value/versions | jq
 
-### Ex 2: Schema Evolution (Modify Column Type)
-Capture:
-- Schema Registry changes
-- ES index mappings
-- Failure scenarios
+curl http://localhost:8081/subjects/dbserver1.demo.users_os-value/versions/latest | jq
+```
+![schema-evolution-ex3-registry](schema-evolution-ex3-registry.png)
 
+ - age Connect schema changes from INT32 → INT64
+ - This creates a new subject version
 
+ii) The ElasticSearch connector task failed due to incompatible record, 
+as the new schema will conflict with already registered age as type integer.
 
+Error log:
+```
+ERROR Encountered an illegal document error. Please check DLQ topic for errors.
+To ignore future records like this, change the configuration 
+'behavior.on.malformed.documents' to 'IGNORE'.
+```
 
+```
+ERROR WorkerSinkTask{id=elasticsearch-users-cdc-sink-0} 
+Task threw an uncaught and unrecoverable exception.
+Task is being killed and will not recover until manually restarted.
+```
+
+iii) Source Connector behavior
+
+No new records appear in the source topic however:
+ - Debezium read the change
+ - Kafka Connect dropped the record
+ - Offsets still advanced
+```
+DEBUG WorkerSourceTask{id=debezium-mysql-users_os-0} 
+Either no records were produced by the task since the last offset commit, 
+or every record has been filtered out by a transformation or dropped due to transformation or conversion errors.
+```
+
+**Why This Is Dangerous in Production**
+ - Source connector may silently stop producing data
+ - Offsets continue → data loss without alerts
+ - Elasticsearch index becomes poisoned
+ - Downstream consumers receive partial or inconsistent data
+
+**Correct Approach**
+
+For datatype changes:
+ - Create a new version of table(users_os_v2)
+ - Then register new Source and Sink connectors which will index and properly pick the new schema.
 
 ---
 Cleanup
