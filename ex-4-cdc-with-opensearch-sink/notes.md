@@ -361,6 +361,128 @@ DELETE FROM users_os WHERE id=99;
 
 ---
 
+### Ex 2: Schema Evolution (Add Column)
+
+Db Change:
+```
+ALTER TABLE users_os ADD COLUMN email VARCHAR(255);
+
+INSERT INTO users_os (id, name, age, email) VALUES (100, 'Schema-Test', 35, 'schema@test.com');
+```
+
+The change in Schema is not being picked by the ElasticSearch Sink Connector as we have used `"schema.ignore": "false" `
+which essentially ignores any new update to the schema after this connector has been registered.
+So let's delete the sink connector and re-register with schema.ignore to true.
+Then connector:
+ - Stops enforcing Kafka Connect schemas
+ - Sends plain JSON documents to Elasticsearch
+ - Lets Elasticsearch dynamically infer fields
+ - Allows schema evolution to appear automatically
+
+```
+curl -X DELETE http://localhost:8083/connectors/elasticsearch-users-cdc-sink
+```
+
+**Create ElasticSearch Sink Connector**
+
+<details><summary><strong>Sink Connector Config</strong></summary>
+
+```curl
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+  "name": "elasticsearch-users-cdc-sink",
+  "config": {
+    "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
+    "tasks.max": "1",
+
+    "topics": "dbserver1.demo.users_os",
+
+    "connection.url": "http://elasticsearch:9200",
+
+    "type.name": "_doc",
+
+    "schema.ignore": "true",
+    "key.ignore": "true",
+
+    "behavior.on.null.values": "ignore",
+
+    "write.method": "insert",
+
+    "max.in.flight.requests": "1",
+
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry:8081",
+
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://schema-registry:8081",
+
+    "transforms": "unwrap",
+
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "rewrite"
+  }
+}'
+```
+</details>
+
+**Validations**
+
+i) As we added new field email in the table, there should be a new schema registered for this subject.
+```
+curl http://localhost:8081/subjects | jq
+
+curl http://localhost:8081/subjects/dbserver1.demo.users_os-value/versions | jq
+
+curl http://localhost:8081/subjects/dbserver1.demo.users_os-value/versions/latest | jq
+```
+![schema-evolution-ex1-registry](schema-evolution-ex1-registry.png)
+
+ii) Verify key schema stability
+```
+curl http://localhost:8081/subjects/dbserver1.demo.users_os-key/versions | jq
+```
+- Primary key (id) did not change
+- Keys should be stable
+- This ensures partitioning and compaction correctness
+
+![schema-evolution-ex1-key-stable](schema-evolution-ex1-key-stable.png)
+
+iii) Kafka Topic Data
+
+![schema-evolution-ex1-consumption](schema-evolution-ex1-consumption.png)
+
+iv) Index in ElasticSearch must update
+```
+curl http://localhost:9200/dbserver1.demo.users_os/_search\?pretty
+
+curl http://localhost:9200/dbserver1.demo.users_os/_mapping | jq
+```
+![schema-evolution-ex1-mapping](schema-evolution-ex1-mapping.png)
+
+![schema-evolution-ex1-search](schema-evolution-ex1-search.png)
+
+### Ex 2: Schema Evolution (Drop Column)
+Capture:
+- Schema Registry changes
+- ES index mappings
+- Failure scenarios
+
+
+
+
+### Ex 2: Schema Evolution (Modify Column Type)
+Capture:
+- Schema Registry changes
+- ES index mappings
+- Failure scenarios
+
+
+
+
+
+---
 Cleanup
 
 ```
@@ -369,3 +491,5 @@ curl -X DELETE http://localhost:8083/connectors/elasticsearch-users-cdc-sink
 curl -X DELETE http://localhost:8083/connectors/debezium-mysql-users_os
 
 ```
+
+
